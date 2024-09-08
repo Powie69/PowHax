@@ -1,27 +1,27 @@
 {
   "schemaVersion": 1,
-  "id": "addon-template",
+  "id": "powhax",
   "version": "${version}",
-  "name": "Addon Template",
-  "description": "An addon template for Meteor Client addons.",
+  "name": "PowHax",
+  "description": "client by Powie69",
   "authors": [
-    "seasnail"
+    "Powie69"
   ],
   "contact": {
-    "repo": "https://github.com/MeteorDevelopment/meteor-addon-template"
+    "repo": "https://github.com/Powie69/PowHax"
   },
   "icon": "assets/template/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [
-      "com.example.addon.AddonTemplate"
+      "powie.powhax.Powhax"
     ]
   },
   "mixins": [
-    "addon-template.mixins.json"
+    "powhax.mixins.json"
   ],
   "custom": {
-    "meteor-client:color": "225,25,25"
+    "meteor-client:color": "225,155,0"
   },
   "depends": {
     "java": ">=21",
