@@ -45,7 +45,7 @@ public class AutoSell extends Module {
 
         client.interactionManager.clickSlot(
             player.currentScreenHandler.syncId,
-            17,
+            8,
             0,
             SlotActionType.PICKUP,
             player
