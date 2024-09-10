@@ -21,17 +21,11 @@ import net.minecraft.util.Hand;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.GameMode;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class BlazeFarm extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgTargeting = settings.createGroup("Targeting");
-    private final SettingGroup sgTiming = settings.createGroup("Timing");
-
-    // General
 
     private final Setting<Weapon> weapon = sgGeneral.add(new EnumSetting.Builder<Weapon>()
         .name("weapon")
@@ -94,7 +88,7 @@ public class BlazeFarm extends Module {
     public boolean attacking;
 
     public BlazeFarm() {
-        super(Powhax.CATEGORY, "Blaze Farm", "Attacks specified entities around you.");
+        super(Powhax.CATEGORY, "Blaze Farm", "Automatically farms Blazes");
     }
 
     @Override
