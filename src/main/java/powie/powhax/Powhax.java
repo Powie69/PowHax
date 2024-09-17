@@ -1,7 +1,6 @@
 package powie.powhax;
 
-import powie.powhax.commands.CommandExample;
-import powie.powhax.hud.HudExample;
+import powie.powhax.commands.*;
 import powie.powhax.modules.*;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.GithubRepo;
@@ -23,7 +22,7 @@ public class Powhax extends MeteorAddon {
         LOG.info("Initializing PowHax");
 
         // Modules
-//        Modules.get().add(new ModuleExample());
+        // Modules.get().add(new ModuleExample());
         Modules.get().add(new AntiVanish());
         Modules.get().add(new AutoSell());
         Modules.get().add(new BlazeFarm());
@@ -31,10 +30,11 @@ public class Powhax extends MeteorAddon {
         Modules.get().add(new SmiteAura());
 
         // Commands
-        Commands.add(new CommandExample());
+        // Commands.add(new CommandExample());
+        Commands.add(new ClearChat());
 
         // HUD
-        Hud.get().register(HudExample.INFO);
+        // Hud.get().register(HudExample.INFO);
     }
 
     @Override

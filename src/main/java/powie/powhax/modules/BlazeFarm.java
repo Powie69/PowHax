@@ -1,16 +1,22 @@
 package powie.powhax.modules;
 
+
+import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.events.world.TickEvent;
-import meteordevelopment.meteorclient.pathing.PathManagers;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.ChatUtils;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
+import meteordevelopment.meteorclient.utils.player.Rotations;
+import meteordevelopment.meteorclient.utils.player.FindItemResult;
+import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.Target;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
-import meteordevelopment.meteorclient.utils.player.PlayerUtils;
-import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.world.TickRate;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
@@ -40,8 +46,6 @@ public class BlazeFarm extends Module {
         .defaultValue(RotationMode.OnHit)
         .build()
     );
-
-    // Targeting
 
     private final Setting<SortPriority> priority = sgGeneral.add(new EnumSetting.Builder<SortPriority>()
         .name("priority")
@@ -82,9 +86,26 @@ public class BlazeFarm extends Module {
         .build()
     );
 
+    private final Setting<Integer> sellDelay = sgGeneral.add(new IntSetting.Builder()
+        .name("Sell Delay Interval")
+        .description("the delay before selling the blaze rods in minecraft ticks")
+        .defaultValue(1200)
+        .min(1)
+        .sliderMin(1)
+        .max(6000)
+        .sliderMax(6000)
+        .build()
+    );
+
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        WVerticalList l = theme.verticalList();
+        l.add(theme.label("Make sure your hotbar has empty slot for blaze rods or else auto won't work"));
+        return l;
+    }
+
     private final List<Entity> targets = new ArrayList<>();
-    private int switchTimer, hitTimer;
-    private boolean wasPathing = false;
+    private int switchTimer, sellTimer;
     public boolean attacking;
 
     public BlazeFarm() {
@@ -102,28 +123,36 @@ public class BlazeFarm extends Module {
         if (!mc.player.isAlive() || PlayerUtils.getGameMode() == GameMode.SPECTATOR) return;
         if (TickRate.INSTANCE.getTimeSinceLastTick() >= 1f && pauseOnLag.get()) return;
 
-
         targets.clear();
         TargetUtils.getList(targets, this::entityCheck, priority.get(), 1);
 
         if (targets.isEmpty()) {
             attacking = false;
-            if (wasPathing) {
-                PathManagers.get().resume();
-                wasPathing = false;
-            }
             return;
         }
 
         Entity primary = targets.getFirst();
 
-
         if (!itemInHand()) return;
-
         attacking = true;
         if (rotation.get() == RotationMode.Always) Rotations.rotate(Rotations.getYaw(primary), Rotations.getPitch(primary, Target.Body));
-
         if (delayCheck()) targets.forEach(this::attack);
+
+        if (sellTimer <= sellDelay.get()) {
+            sellTimer++;
+            return;
+        }
+        FindItemResult item = InvUtils.findInHotbar(Items.BLAZE_ROD);
+        if (!item.found()) {
+            if (20 <= sellDelay.get()) info("Blaze rod not found in hotbar");
+            if (600 >= sellDelay.get()) sellTimer = 0; // if sellDelay is lower than 30 seconds, then reset sellTimer(tick)
+            return;
+        };
+        int prevSlot = mc.player.getInventory().selectedSlot;
+        InvUtils.swap(item.slot(), false);
+        ChatUtils.sendPlayerMsg("/sell handall");
+        InvUtils.swap(prevSlot, false);
+        sellTimer = 0;
     }
 
     private boolean entityCheck(Entity entity) {
@@ -161,7 +190,6 @@ public class BlazeFarm extends Module {
         mc.interactionManager.attackEntity(mc.player, target);
         mc.player.swingHand(Hand.MAIN_HAND);
 
-        hitTimer = 0;
     }
 
     private boolean itemInHand() {
