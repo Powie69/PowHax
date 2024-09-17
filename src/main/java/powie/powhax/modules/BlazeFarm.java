@@ -1,9 +1,5 @@
 package powie.powhax.modules;
 
-
-import meteordevelopment.meteorclient.gui.GuiTheme;
-import meteordevelopment.meteorclient.gui.widgets.WWidget;
-import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -96,13 +92,6 @@ public class BlazeFarm extends Module {
         .sliderMax(6000)
         .build()
     );
-
-    @Override
-    public WWidget getWidget(GuiTheme theme) {
-        WVerticalList l = theme.verticalList();
-        l.add(theme.label("Make sure your hotbar has empty slot for blaze rods or else auto won't work"));
-        return l;
-    }
 
     private final List<Entity> targets = new ArrayList<>();
     private int switchTimer, sellTimer;
