@@ -34,7 +34,8 @@ Once Meteor client is installed, proceed to downloading Powhax.
 Meteor client is required for running Powhax since it is only an addon for Meteor client
 
 1. Download the `.jar` file for Powhax [here.](https://github.com/Powie69/PowHax/releases)
-[Screenshot of releases page](https://github.com/user-attachments/assets/26c88e09-c9f6-43e7-a2bd-d36fc06fff0a)
+![image](https://github.com/user-attachments/assets/c9a0f337-938f-4758-bcf6-4c71271dfe5b)
+
 
 *note: The version of Powhax may not be the same in the link.*
 
