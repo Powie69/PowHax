@@ -37,6 +37,7 @@ Meteor client is required for running Powhax since it is only an addon for Meteo
 [Screenshot of releases page](https://github.com/user-attachments/assets/26c88e09-c9f6-43e7-a2bd-d36fc06fff0a)
 
 *note: The version of Powhax may not be the same in the link.*
+
 2. Go to your downloads folder and drag the Powhax `.jar` file into the mods folder. (With Meteor client)
 
  Launch the Fabric instance, it should have Powhax and Meteor installed.
