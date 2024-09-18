@@ -1,6 +1,5 @@
 # PowHax
 
-<hr>
 
 made for servers that are non-vanila.
 
@@ -8,9 +7,10 @@ this addon is focused on plugins like [Essentials](https://essentialsx.net/), [m
 
 will try add more features soon™ 
 
-<hr>
 
 ## download [1.21.1]
+
+[Installation guide here](./Installation%20guide.md)
 
 <a href="https://github.com/Powie69/PowHax/releases">
     <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS2Csaj7qL5xw4PUQVUL8ig8adN8wUtHIyyPNO3jHq4ZPQrInpoNfK3-5bpCc6y4Qk0tw&usqp=CAU" />
