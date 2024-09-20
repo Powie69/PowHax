@@ -24,6 +24,7 @@ public class Powhax extends MeteorAddon {
         // Modules
         // Modules.get().add(new ModuleExample());
         Modules.get().add(new AntiVanish());
+        Modules.get().add(new ArmorBuster());
         Modules.get().add(new AutoSell());
         Modules.get().add(new BlazeFarm());
         Modules.get().add(new DimensionGodMode());
