@@ -1,5 +1,6 @@
 package powie.powhax.modules;
 
+import net.minecraft.client.MinecraftClient;
 import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
