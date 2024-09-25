@@ -20,7 +20,7 @@ public class DimensionGodMode extends Module {
     // Constructor
 
     public DimensionGodMode() {
-        super(Powhax.CATEGORY, "Dimension God Mode", "Makes you invincible after changing Dimensions");
+        super(Powhax.CATEGORY, "dimension-god-mode", "Makes you invincible after changing Dimensions");
     }
 
     @Override

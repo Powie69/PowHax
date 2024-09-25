@@ -1,6 +1,5 @@
 package powie.powhax.modules;
 
-import meteordevelopment.meteorclient.utils.player.Rotations;
 import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
@@ -13,6 +12,7 @@ import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
+import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -72,7 +72,7 @@ public class SmiteAura extends Module {
     private int timer = 0;
 
     public SmiteAura() {
-        super(Powhax.CATEGORY, "Smite Aura", "Automatically strikes lighting on specified entities around you");
+        super(Powhax.CATEGORY, "smite-aura", "Automatically strikes lighting on specified entities around you");
     }
 
     @EventHandler
@@ -132,6 +132,6 @@ public class SmiteAura extends Module {
     }
 
     public enum Command {
-        elightning, shock, eshock, smite, esmite, strike, estrike, thor, ethor
+        lightning, elightning, shock, eshock, smite, esmite, strike, estrike, thor, ethor
     }
 }

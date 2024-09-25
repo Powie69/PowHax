@@ -26,7 +26,7 @@ public class AutoSell extends Module {
     );
 
     public AutoSell() {
-        super(Powhax.CATEGORY, "Auto Sell", "Automatically sells a stack in Tradeview");
+        super(Powhax.CATEGORY, "auto-sell", "Automatically sells a stack in Tradeview");
     }
 
     int timer = 0;

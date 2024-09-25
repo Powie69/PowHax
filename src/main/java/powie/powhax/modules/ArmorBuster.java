@@ -89,7 +89,7 @@ public class ArmorBuster extends Module {
     public boolean attacking;
 
     public ArmorBuster() {
-        super(Powhax.CATEGORY, "Armor Buster", "Tries to break a player's armor with armor impact ability");
+        super(Powhax.CATEGORY, "armor-buster", "Tries to break a player's armor with armor impact ability");
     }
 
     @Override

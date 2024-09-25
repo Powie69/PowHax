@@ -1,6 +1,5 @@
 package powie.powhax.modules;
 
-import net.minecraft.client.MinecraftClient;
 import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
@@ -99,7 +98,7 @@ public class BlazeFarm extends Module {
     public boolean attacking;
 
     public BlazeFarm() {
-        super(Powhax.CATEGORY, "Blaze Farm", "Automatically farms Blazes");
+        super(Powhax.CATEGORY, "blaze-farm", "Automatically farms Blazes");
     }
 
     @Override
