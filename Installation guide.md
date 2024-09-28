@@ -1,4 +1,4 @@
-# <center>**Installation Guide**</center>
+<h1 align="center"><b>Installation Guide</b></h1>
 
 ### Prerequisites
 
