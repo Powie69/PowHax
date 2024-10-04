@@ -35,6 +35,7 @@ public class Powhax extends MeteorAddon {
         // Commands
         // Commands.add(new CommandExample());
         Commands.add(new ClearChat());
+        Commands.add(new Coords());
 
         // HUD
         // Hud.get().register(HudExample.INFO);
