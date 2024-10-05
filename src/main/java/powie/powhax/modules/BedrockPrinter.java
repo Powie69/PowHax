@@ -57,7 +57,6 @@ public class BedrockPrinter extends Module {
 
     @EventHandler
     private void onChunkData(ChunkDataEvent event) {
-        info(String.valueOf(event.chunk()));
         executor.execute(()->{
             Chunk c = event.chunk();
             for (int x = c.getPos().getStartX(); x <= c.getPos().getEndX(); x++) {
