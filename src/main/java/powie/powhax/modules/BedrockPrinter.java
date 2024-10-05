@@ -3,9 +3,9 @@
 
 package powie.powhax.modules;
 
+import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.settings.*;
-import powie.powhax.Powhax;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
