@@ -53,6 +53,6 @@ public class Powhax extends MeteorAddon {
 
     @Override
     public GithubRepo getRepo() {
-        return new GithubRepo("MeteorDevelopment", "meteor-addon-template");
+        return new GithubRepo("Powie69", "Powhax");
     }
 }

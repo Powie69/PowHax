@@ -1,20 +1,23 @@
 package powie.powhax.modules;
 
-import meteordevelopment.meteorclient.events.render.Render3DEvent;
-import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import powie.powhax.Powhax;
+
+import meteordevelopment.meteorclient.events.render.Render3DEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.mixininterface.IVec3d;
 import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.Target;
+import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.meteorclient.utils.player.Rotations;
 import meteordevelopment.meteorclient.utils.world.TickRate;
 import meteordevelopment.orbit.EventHandler;
+
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.LivingEntity;
@@ -24,8 +27,11 @@ import net.minecraft.entity.mob.ZombifiedPiglinEntity;
 import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.passive.WolfEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.Box;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.RaycastContext;
 import net.minecraft.world.GameMode;
 
 import java.util.ArrayList;
@@ -170,8 +176,8 @@ public class SmiteAura extends Module {
         target = primary;
 
         attacking = true;
-
         targets.forEach(this::attack);
+
         timer = 0;
     }
 
@@ -179,6 +185,14 @@ public class SmiteAura extends Module {
     private void onRender(Render3DEvent event) {
         if (target == null) return;
         Rotations.rotate(Rotations.getYaw(target), Rotations.getPitch(target, Target.Feet));
+    }
+
+    private void attack(Entity target) {
+        if (command.get() != Command.custom) {
+            ChatUtils.sendPlayerMsg("/" + command.get());
+        } else {
+            ChatUtils.sendPlayerMsg(customCommand.get());
+        }
     }
 
     private boolean entityCheck(Entity entity) {
@@ -195,7 +209,7 @@ public class SmiteAura extends Module {
 
         if (!entities.get().contains(entity.getType())) return false;
         if (ignoreNamed.get() && entity.hasCustomName()) return false;
-        if (!PlayerUtils.canSeeEntity(entity)) return false;
+        if (!canSeeEntityFeet(entity)) return false;
         if (ignoreTamed.get()) {
             if (entity instanceof Tameable tameable
                 && tameable.getOwnerUuid() != null
@@ -221,12 +235,15 @@ public class SmiteAura extends Module {
         return true;
     }
 
-    private void attack(Entity target) {
-        if (command.get() != Command.custom) {
-            ChatUtils.sendPlayerMsg("/" + command.get());
-        } else {
-            ChatUtils.sendPlayerMsg(customCommand.get());
-        }
+    public boolean canSeeEntityFeet(Entity entity) {
+        Vec3d vec1 = new Vec3d(0, 0, 0);
+        Vec3d vec2 = new Vec3d(0, 0, 0);
+
+        ((IVec3d) vec1).set(mc.player.getX(), mc.player.getY() + mc.player.getStandingEyeHeight(), mc.player.getZ());
+        ((IVec3d) vec2).set(entity.getX(), entity.getY(), entity.getZ());
+        boolean canSeeFeet = mc.world.raycast(new RaycastContext(vec1, vec2, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, mc.player)).getType() == HitResult.Type.MISS;
+
+        return canSeeFeet;
     }
 
     public Entity getTarget() {
