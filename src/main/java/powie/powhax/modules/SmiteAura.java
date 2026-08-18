@@ -160,6 +160,8 @@ public class SmiteAura extends Module {
     );
 
     private final List<Entity> targets = new ArrayList<>();
+    private final Vec3 rayStart = new Vec3(0, 0, 0);
+    private final Vec3 rayEnd = new Vec3(0, 0, 0);
     private int timer = 0;
     public boolean attacking;
     private Entity target;
@@ -261,13 +263,10 @@ public class SmiteAura extends Module {
     }
 
     public boolean canSeeEntityFeet(Entity entity) {
-        Vec3 vec1 = new Vec3(0, 0, 0);
-        Vec3 vec2 = new Vec3(0, 0, 0);
+        ((IVec3) rayStart).meteor$set(mc.player.getX(), mc.player.getY() + mc.player.getEyeHeight(), mc.player.getZ());
+        ((IVec3) rayEnd).meteor$set(entity.getX(), entity.getY(), entity.getZ());
 
-        ((IVec3) vec1).meteor$set(mc.player.getX(), mc.player.getY() + mc.player.getEyeHeight(), mc.player.getZ());
-        ((IVec3) vec2).meteor$set(entity.getX(), entity.getY(), entity.getZ());
-
-        return mc.level.clip(new ClipContext(vec1, vec2, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
+        return mc.level.clip(new ClipContext(rayStart, rayEnd, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mc.player)).getType() == HitResult.Type.MISS;
     }
 
     public Entity getTarget() {

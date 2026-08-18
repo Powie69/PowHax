@@ -93,6 +93,15 @@ public class DeathCommands extends Module {
         }
     }
 
+    @Override
+    public void onDeactivate() {
+        commandQueue.clear();
+        running = false;
+        startDelay = 0;
+        intervalDelay = 0;
+        firstCommand = true;
+    }
+
     @EventHandler
     private void onReceivePacket(PacketEvent.Receive event) {
         if (!(event.packet instanceof net.minecraft.network.protocol.game.ClientboundRespawnPacket) || running) return;

@@ -84,7 +84,6 @@ public class AutoEndorse extends Module {
 
     @EventHandler
     private void onOpenScreen(OpenScreenEvent event) {
-        // if (mc.player == null || mc.world == null) return; // assuming that this will never happen
         if (!(event.screen instanceof AbstractSignEditScreen)) return;
 
         Entity target = getTarget(targetRange.get(), targetPriority.get());
