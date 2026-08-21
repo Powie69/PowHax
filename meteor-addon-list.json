@@ -13,9 +13,5 @@
     "1.21.5"
   ],
   "icon": "https://raw.githubusercontent.com/Powie69/PowHax/refs/heads/master/src/main/resources/assets/template/icon.gif",
-  "homepage": "https://github.com/Powie69/PowHax",
-  "feature_directories": {
-    "commands": ["commands"],
-    "modules": ["modules"]
-  }
+  "homepage": "https://github.com/Powie69/PowHax"
 }
