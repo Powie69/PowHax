@@ -31,6 +31,10 @@ public class FlySpeed extends Module {
         setSpeed(speed.get().floatValue());
     }
 
+    /**
+     * 0.05 is the default speed
+     * @see net.minecraft.world.entity.player.Abilities
+     */
     @Override
     public void onDeactivate() {
         setSpeed(0.05f);

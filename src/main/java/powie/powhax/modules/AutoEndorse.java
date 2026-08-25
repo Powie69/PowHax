@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
+import meteordevelopment.meteorclient.utils.entity.EntityUtils;
 import meteordevelopment.meteorclient.utils.entity.SortPriority;
 import meteordevelopment.meteorclient.utils.entity.TargetUtils;
 import meteordevelopment.meteorclient.utils.entity.fakeplayer.FakePlayerEntity;
@@ -18,8 +19,11 @@ import net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen;
 import net.minecraft.network.protocol.game.ServerboundSignUpdatePacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.entity.SignBlockEntity;
 import powie.powhax.Powhax;
+
+import static meteordevelopment.meteorclient.MeteorClient.mc;
 
 public class AutoEndorse extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
@@ -129,12 +133,11 @@ public class AutoEndorse extends Module {
     private Player getTarget(double range, SortPriority priority) {
         if (!Utils.canUpdate()) return null;
         return (Player) TargetUtils.get(entity -> {
-            if (!(entity instanceof Player) || entity == mc.player) return false;
-            if (((Player) entity).isDeadOrDying() || ((Player) entity).getHealth() <= 0) return false;
+            if (!(entity instanceof Player player) || entity == mc.player) return false;
+            if (player.isDeadOrDying() || player.getHealth() <= 0) return false;
             if (!PlayerUtils.isWithin(entity, range)) return false;
-            if (targets.get() == Target.Friends && !Friends.get().isFriend((Player) entity)) return false;
-            if (targets.get() == Target.NonFriends && Friends.get().isFriend((Player) entity)) return false;
-            return entity instanceof FakePlayerEntity;
+            if (targets.get() == Target.Friends && !Friends.get().isFriend(player)) return false;
+            return targets.get() != Target.NonFriends || !Friends.get().isFriend(player);
         }, priority);
     }
 

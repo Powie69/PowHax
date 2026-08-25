@@ -34,6 +34,7 @@ public class AutoLogin extends Module {
 
     @EventHandler
     private void onGameJoined(GameJoinedEvent event) {
+        if (password.get().isBlank()) return;
         ChatUtils.sendPlayerMsg(command.get() + " " + password.get());
     }
 
