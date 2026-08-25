@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.sun.net.httpserver.HttpServer;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
+import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
@@ -150,6 +151,7 @@ public class AutoPearlStasis extends Module {
     private int currentActivePort; // Because port changes don't update running server
     private int pops;
     private boolean hasPearlLoaded;
+    private String mainAccountName;
 
     /**
      * <blockquote>FAREX PULL</blockquote>
@@ -177,13 +179,16 @@ public class AutoPearlStasis extends Module {
     public void onActivate() {
         pops = 0;
 
-        if (mode.get() != Mode.Puller) return;
-        try {
-            httpServer = new EmbeddedHttpServer(serverPort.get());
-            currentActivePort = serverPort.get();
-        } catch (IOException e) {
-            error("Failed to start HTTP server: " + e);
-            toggle();
+        if (mode.get() == Mode.Main) {
+            testConnection();
+        } else {
+            try {
+                httpServer = new EmbeddedHttpServer(serverPort.get());
+                currentActivePort = serverPort.get();
+            } catch (IOException e) {
+                error("Failed to start HTTP server: " + e);
+                toggle();
+            }
         }
     }
 
@@ -200,10 +205,11 @@ public class AutoPearlStasis extends Module {
         if (mode.get() == Mode.Main) {
             return "Main | Pearl Loaded: " + hasPearlLoaded;
         } else {
-            return "Puller | Listening on: " + currentActivePort;
+            return "Puller | Listening on: " + currentActivePort + " | " + mainAccountName;
         }
     }
 
+    // Should pull logic
     @EventHandler
     private void onReceivePacket(PacketEvent.Receive event) {
         if (!(event.packet instanceof ClientboundEntityEventPacket p)) return;
@@ -248,11 +254,12 @@ public class AutoPearlStasis extends Module {
         }
     }
 
-    // TODO: handle on puller side
+    // Has pearl logic
     @EventHandler
     private void onEntityAdded(EntityAddedEvent event) {
+        if (mode.get() != Mode.Puller) return;
         if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equals(mc.player.getName().getString())
+            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
                 && PlayerUtils.isWithin(trapdoorPos.get(), 3)) {
                 hasPearlLoaded = true;
                 info("pearl loaded");
@@ -260,8 +267,18 @@ public class AutoPearlStasis extends Module {
         }
     }
 
+    @EventHandler
+    private void onEntityRemoved(EntityRemovedEvent event) {
+        if (mode.get() != Mode.Puller) return;
+        if (event.entity instanceof ThrownEnderpearl pearl) {
+            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)) {
+                hasPearlLoaded = false;
+                info("pearl removed");
+            }
+        }
+    }
+
     private void requestPull(String reason) {
-        if (!hasPearlLoaded) return;
         if (mc.player.isDeadOrDying()) return;
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create("http://localhost:" + serverPort.get() + "/pull"))
@@ -273,7 +290,6 @@ public class AutoPearlStasis extends Module {
             HttpResponse.BodyHandlers.discarding()
         ).thenAccept(_ -> {
             info("Pulled: " + reason);
-            hasPearlLoaded = false;
         }).exceptionally(e -> {
             if (e.getCause() instanceof UnknownHostException) {
                 error("Connection error: Puller's side is not active");
@@ -284,8 +300,9 @@ public class AutoPearlStasis extends Module {
         });
     }
 
-    public void pullPearl() {
+    private void pullPearl() {
         if (mode.get().equals(Mode.Main)) return;
+        if (!hasPearlLoaded) return;
 
         if (!(mc.level.getBlockState(trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             error("selected position is not a trapdoor");
@@ -305,12 +322,17 @@ public class AutoPearlStasis extends Module {
                 false),
             InteractionHand.MAIN_HAND,
             true);
+
+        hasPearlLoaded = false;
     }
 
     private void testConnection() {
+
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create("http://localhost:" + serverPort.get() + "/ping"))
-            .GET()
+            .POST(HttpRequest.BodyPublishers.ofString(
+                GSON.toJson(new PingRequest(mc.player.getName().getString())))
+            )
             .build();
 
         client.sendAsync(
@@ -332,7 +354,7 @@ public class AutoPearlStasis extends Module {
                 return;
             }
 
-            info("Connection found. Puller's username is: " + ping.player);
+            info("Connection found. Puller's username is: " + ping.PullerUsername);
         }).exceptionally(e -> {
             if (e.getCause() instanceof UnknownHostException) {
                 error("Connection error: Puller's side is not active");
@@ -348,7 +370,10 @@ public class AutoPearlStasis extends Module {
         Puller
     }
 
-    private record PingResponse(String player, String server) {
+    private record PingRequest(String MainUsername) {
+    }
+
+    private record PingResponse(String PullerUsername, String server) {
     }
 
     private class EmbeddedHttpServer {
@@ -369,10 +394,15 @@ public class AutoPearlStasis extends Module {
             );
 
             server.createContext("/ping", exchange -> {
-                if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
                     exchange.sendResponseHeaders(405, -1); // 405 Method Not Allowed
                     return;
                 }
+
+                PingRequest pingRequest = GSON.fromJson(
+                    new String(exchange.getRequestBody().readAllBytes()),
+                    PingRequest.class);
+                mainAccountName = pingRequest.MainUsername();
 
                 String response = GSON.toJson(new PingResponse(
                     mc.player.getName().getString(),
