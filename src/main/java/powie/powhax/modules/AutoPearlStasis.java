@@ -3,6 +3,7 @@ package powie.powhax.modules;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.sun.net.httpserver.HttpServer;
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
@@ -45,7 +46,7 @@ import java.util.Set;
 
 public class AutoPearlStasis extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
-    private final SettingGroup sgTriggers = settings.createGroup("Tiggers");
+    private final SettingGroup sgTriggers = settings.createGroup("Triggers");
     //    private final SettingGroup sgHost = settings.createGroup("Host (Main)");
     private final SettingGroup sgPuller = settings.createGroup("Worker (Puller)");
 
@@ -70,11 +71,15 @@ public class AutoPearlStasis extends Module {
     );
 
     // Triggers
+    private Main main;
+
     private final Setting<Keybind> triggerBind = sgTriggers.add(new KeybindSetting.Builder()
         .name("trigger-bind")
         .description("The keybind to manually trigger pearl stasis")
         .visible(() -> mode.get() == Mode.Main)
-        .action(() -> requestPull("Pressed bind"))
+        .action(() -> {
+            if (main != null) main.requestPull("Pressed bind");
+        })
         .build()
     );
 
@@ -145,13 +150,8 @@ public class AutoPearlStasis extends Module {
     );
 
     private final Gson GSON = new GsonBuilder().create();
-    private final HttpClient client = HttpClient.newHttpClient();
 
-    private EmbeddedHttpServer httpServer;
-    private int currentActivePort; // Because port changes don't update running server
-    private int pops;
-    private boolean hasPearlLoaded;
-    private String mainAccountName;
+    private Puller puller;
 
     /**
      * <blockquote>FAREX PULL</blockquote>
@@ -170,199 +170,47 @@ public class AutoPearlStasis extends Module {
         WVerticalList l = theme.verticalList();
 
         WButton testConnectionButton = l.add(theme.button("test Connection")).expandX().widget();
-        testConnectionButton.action = this::testConnection;
+//        testConnectionButton.action = this::testConnection;
 
         return l;
     }
 
     @Override
     public void onActivate() {
-        pops = 0;
-
         if (mode.get() == Mode.Main) {
-            testConnection();
+            main = new Main();
+            MeteorClient.EVENT_BUS.subscribe(main);
+            main.testConnection();
         } else {
             try {
-                httpServer = new EmbeddedHttpServer(serverPort.get());
-                currentActivePort = serverPort.get();
+                puller = new Puller(serverPort.get());
             } catch (IOException e) {
-                error("Failed to start HTTP server: " + e);
+                error(String.valueOf(e));
                 toggle();
             }
+            MeteorClient.EVENT_BUS.subscribe(puller);
         }
     }
 
     @Override
     public void onDeactivate() {
-        if (mode.get() != Mode.Puller || httpServer == null) return;
-        httpServer.stop();
-        httpServer = null;
-        currentActivePort = 0;
+        if (mode.get() == Mode.Main) {
+            if (main != null) MeteorClient.EVENT_BUS.unsubscribe(main);
+            main = null;
+        } else {
+            puller.stopHttpServer();
+            if (puller != null) MeteorClient.EVENT_BUS.unsubscribe(puller);
+            puller = null;
+        }
     }
 
     @Override
     public String getInfoString() {
         if (mode.get() == Mode.Main) {
-            return "Main | Pearl Loaded: " + hasPearlLoaded;
+            return "Main";
         } else {
-            return "Puller | Listening on: " + currentActivePort + " | " + mainAccountName;
+            return "Puller | " + (puller != null ? puller.mainAccountName : "");
         }
-    }
-
-    // Should pull logic
-    @EventHandler
-    private void onReceivePacket(PacketEvent.Receive event) {
-        if (!(event.packet instanceof ClientboundEntityEventPacket p)) return;
-        if (p.getEventId() != EntityEvent.PROTECTED_FROM_DEATH) return;
-
-        Entity entity = p.getEntity(mc.level);
-        if (entity == null || !entity.equals(mc.player)) return;
-
-        pops++;
-        if (totemPops.get() > 0 && pops >= totemPops.get()) requestPull("Popped " + pops + " totems.");
-    }
-
-    @EventHandler
-    private void onTick(TickEvent.Post event) {
-        float playerHealth = mc.player.getHealth();
-
-        if (playerHealth <= health.get()) {
-            requestPull("Health was lower than " + health.get() + ".");
-            return;
-        }
-
-        if (smart.get()
-            && !mc.player.isInvulnerable()
-            && !mc.player.getAbilities().invulnerable
-            && playerHealth + mc.player.getAbsorptionAmount() - PlayerUtils.possibleHealthReductions() < health.get()) {
-            requestPull("Health was going to be lower than " + health.get() + ".");
-            return;
-        }
-
-        if (!onlyTrusted.get() && entities.get().isEmpty())
-            return; // only check all entities if needed
-
-        for (Entity entity : mc.level.entitiesForRendering()) {
-            if (entity instanceof Player player && player.getUUID() != mc.player.getUUID()) {
-                if (onlyTrusted.get() && player != mc.player && !Friends.get().isFriend(player)) {
-                    requestPull("Non-trusted player '" + player.getName().getString() + "' appeared in your render distance.");
-                    return;
-                }
-            } else if (entities.get().contains(entity.getType())) {
-                requestPull(entity.getType().getDescription().getString() + " appeared in your render distance.");
-            }
-        }
-    }
-
-    // Has pearl logic
-    @EventHandler
-    private void onEntityAdded(EntityAddedEvent event) {
-        if (mode.get() != Mode.Puller) return;
-        if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
-                && PlayerUtils.isWithin(trapdoorPos.get(), 3)) {
-                hasPearlLoaded = true;
-                info("pearl loaded");
-            }
-        }
-    }
-
-    @EventHandler
-    private void onEntityRemoved(EntityRemovedEvent event) {
-        if (mode.get() != Mode.Puller) return;
-        if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)) {
-                hasPearlLoaded = false;
-                info("pearl removed");
-            }
-        }
-    }
-
-    private void requestPull(String reason) {
-        if (mc.player.isDeadOrDying()) return;
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + serverPort.get() + "/pull"))
-            .GET()
-            .build();
-
-        client.sendAsync(
-            request,
-            HttpResponse.BodyHandlers.discarding()
-        ).thenAccept(_ -> {
-            info("Pulled: " + reason);
-        }).exceptionally(e -> {
-            if (e.getCause() instanceof UnknownHostException) {
-                error("Connection error: Puller's side is not active");
-            } else {
-                error("Connection error: " + e.getMessage());
-            }
-            return null;
-        });
-    }
-
-    private void pullPearl() {
-        if (mode.get().equals(Mode.Main)) return;
-        if (!hasPearlLoaded) return;
-
-        if (!(mc.level.getBlockState(trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
-            error("selected position is not a trapdoor");
-            return;
-        }
-        if (!PlayerUtils.isWithinReach(trapdoorPos.get())) {
-            error("selected position is out of reach");
-            return;
-        }
-
-        if (rotate.get()) Rotations.rotate(Rotations.getYaw(trapdoorPos.get()), Rotations.getPitch(trapdoorPos.get()));
-
-        BlockUtils.interact(new BlockHitResult(
-                Utils.vec3(trapdoorPos.get()),
-                Direction.UP,
-                trapdoorPos.get(),
-                false),
-            InteractionHand.MAIN_HAND,
-            true);
-
-        hasPearlLoaded = false;
-    }
-
-    private void testConnection() {
-
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + serverPort.get() + "/ping"))
-            .POST(HttpRequest.BodyPublishers.ofString(
-                GSON.toJson(new PingRequest(mc.player.getName().getString())))
-            )
-            .build();
-
-        client.sendAsync(
-            request,
-            HttpResponse.BodyHandlers.ofString()
-        ).thenAccept(response -> {
-            if (response.statusCode() >= 400) {
-                error("Connection error");
-                return;
-            }
-
-            PingResponse ping = GSON.fromJson(response.body(), PingResponse.class);
-            if (ping.server.isEmpty()) {
-                error("Connection found but Puller is not online");
-                return;
-            }
-            if (!ping.server.equals(Utils.getWorldName())) {
-                error("Connection found but Puller is on the wrong server: " + ping.server());
-                return;
-            }
-
-            info("Connection found. Puller's username is: " + ping.PullerUsername);
-        }).exceptionally(e -> {
-            if (e.getCause() instanceof UnknownHostException) {
-                error("Connection error: Puller's side is not active");
-            } else {
-                error("Connection error: " + e.getMessage());
-            }
-            return null;
-        });
     }
 
     public enum Mode {
@@ -376,14 +224,192 @@ public class AutoPearlStasis extends Module {
     private record PingResponse(String PullerUsername, String server) {
     }
 
+    // TODO: maybe separate files for Main and Puller
+
+    private class Main {
+        private final HttpClient client = HttpClient.newHttpClient();
+        private int pops;
+
+        @EventHandler
+        private void onReceivePacket(PacketEvent.Receive event) {
+            if (!(event.packet instanceof ClientboundEntityEventPacket p)) return;
+            if (p.getEventId() != EntityEvent.PROTECTED_FROM_DEATH) return;
+
+            Entity entity = p.getEntity(mc.level);
+            if (entity == null || !entity.equals(mc.player)) return;
+
+            pops++;
+            if (totemPops.get() > 0 && pops >= totemPops.get()) requestPull("Popped " + pops + " totems.");
+        }
+
+        @EventHandler
+        private void onTick(TickEvent.Post event) {
+            float playerHealth = mc.player.getHealth();
+
+            if (playerHealth <= health.get()) {
+                requestPull("Health was lower than " + health.get() + ".");
+                return;
+            }
+
+            if (smart.get()
+                && !mc.player.isInvulnerable()
+                && !mc.player.getAbilities().invulnerable
+                && playerHealth + mc.player.getAbsorptionAmount() - PlayerUtils.possibleHealthReductions() < health.get()) {
+                requestPull("Health was going to be lower than " + health.get() + ".");
+                return;
+            }
+
+            if (!onlyTrusted.get() && entities.get().isEmpty())
+                return; // only check all entities if needed
+
+            for (Entity entity : mc.level.entitiesForRendering()) {
+                if (entity instanceof Player player && player.getUUID() != mc.player.getUUID()) {
+                    if (onlyTrusted.get() && player != mc.player && !Friends.get().isFriend(player)) {
+                        requestPull("Non-trusted player '" + player.getName().getString() + "' appeared in your render distance.");
+                        return;
+                    }
+                } else if (entities.get().contains(entity.getType())) {
+                    requestPull(entity.getType().getDescription().getString() + " appeared in your render distance.");
+                }
+            }
+        }
+
+        private void requestPull(String reason) {
+            if (mc.player.isDeadOrDying()) return;
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + serverPort.get() + "/pull"))
+                .GET()
+                .build();
+
+            client.sendAsync(
+                request,
+                HttpResponse.BodyHandlers.discarding()
+            ).thenAccept(_ -> {
+                info("Pulled: " + reason);
+            }).exceptionally(e -> {
+                if (e.getCause() instanceof UnknownHostException) {
+                    error("Connection error: Puller's side is not active");
+                } else {
+                    error("Connection error: " + e.getMessage());
+                }
+                return null;
+            });
+        }
+
+        private void testConnection() {
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:" + serverPort.get() + "/ping"))
+                .POST(HttpRequest.BodyPublishers.ofString(
+                    GSON.toJson(new PingRequest(mc.player.getName().getString())))
+                )
+                .build();
+
+            client.sendAsync(
+                request,
+                HttpResponse.BodyHandlers.ofString()
+            ).thenAccept(response -> {
+                if (response.statusCode() >= 400) {
+                    error("Connection error");
+                    return;
+                }
+
+                PingResponse ping = GSON.fromJson(response.body(), PingResponse.class);
+                if (ping.server.isEmpty()) {
+                    error("Connection found but Puller is not online");
+                    return;
+                }
+                if (!ping.server.equals(Utils.getWorldName())) {
+                    error("Connection found but Puller is on the wrong server: " + ping.server());
+                    return;
+                }
+
+                info("Connection found. Puller's username is: " + ping.PullerUsername);
+            }).exceptionally(e -> {
+                if (e.getCause() instanceof UnknownHostException) {
+                    error("Connection error: Puller's side is not active");
+                } else {
+                    error("Connection error: " + e.getMessage());
+                }
+                return null;
+            });
+        }
+    }
+
+    private class Puller {
+        private EmbeddedHttpServer httpServer;
+        private boolean hasPearlLoaded;
+        private String mainAccountName;
+
+        private Puller(int port) throws IOException {
+            httpServer = new EmbeddedHttpServer(this, port);
+        }
+
+        @EventHandler
+        private void onEntityAdded(EntityAddedEvent event) {
+            if (event.entity instanceof ThrownEnderpearl pearl) {
+                if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
+                    && PlayerUtils.isWithin(trapdoorPos.get(), 3)) {
+                    hasPearlLoaded = true;
+                    info("pearl loaded");
+                }
+            }
+        }
+
+        @EventHandler
+        private void onEntityRemoved(EntityRemovedEvent event) {
+            if (event.entity instanceof ThrownEnderpearl pearl) {
+                if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)) {
+                    hasPearlLoaded = false;
+                    info("pearl removed");
+                }
+            }
+        }
+
+        private void pullPearl() {
+            if (mode.get().equals(Mode.Main)) return;
+            if (!hasPearlLoaded) return;
+
+            if (!(mc.level.getBlockState(trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
+                error("selected position is not a trapdoor");
+                return;
+            }
+            if (!PlayerUtils.isWithinReach(trapdoorPos.get())) {
+                error("selected position is out of reach");
+                return;
+            }
+
+            if (rotate.get())
+                Rotations.rotate(Rotations.getYaw(trapdoorPos.get()), Rotations.getPitch(trapdoorPos.get()));
+
+            BlockUtils.interact(new BlockHitResult(
+                    Utils.vec3(trapdoorPos.get()),
+                    Direction.UP,
+                    trapdoorPos.get(),
+                    false),
+                InteractionHand.MAIN_HAND,
+                true);
+
+            hasPearlLoaded = false;
+        }
+
+        // ts so dumb
+        private void stopHttpServer() {
+            if (httpServer == null) return;
+            httpServer.stop();
+            httpServer = null;
+        }
+    }
+
     private class EmbeddedHttpServer {
+        private final Puller puller;
         private HttpServer server;
 
-        public EmbeddedHttpServer(int port) throws IOException {
+        public EmbeddedHttpServer(Puller puller, int port) throws IOException {
+            this.puller = puller;
             start(port);
         }
 
-        public void start(int port) throws IOException {
+        private void start(int port) throws IOException {
             if (server != null) {
                 return;
             }
@@ -402,7 +428,7 @@ public class AutoPearlStasis extends Module {
                 PingRequest pingRequest = GSON.fromJson(
                     new String(exchange.getRequestBody().readAllBytes()),
                     PingRequest.class);
-                mainAccountName = pingRequest.MainUsername();
+                puller.mainAccountName = pingRequest.MainUsername();
 
                 String response = GSON.toJson(new PingResponse(
                     mc.player.getName().getString(),
@@ -421,7 +447,7 @@ public class AutoPearlStasis extends Module {
                     return;
                 }
 
-                pullPearl();
+                puller.pullPearl();
 
                 exchange.sendResponseHeaders(200, -1);
                 exchange.close();
@@ -430,7 +456,7 @@ public class AutoPearlStasis extends Module {
             server.start();
         }
 
-        public void stop() {
+        private void stop() {
             if (server == null) return;
             server.stop(0);
             server = null;
