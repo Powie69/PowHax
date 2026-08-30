@@ -4,6 +4,8 @@ import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.GithubRepo;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
 import meteordevelopment.meteorclient.commands.Commands;
+import meteordevelopment.meteorclient.gui.utils.SettingsWidgetFactory;
+import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.systems.modules.Category;
 import meteordevelopment.meteorclient.systems.modules.Modules;
 import net.fabricmc.loader.api.FabricLoader;
@@ -12,6 +14,7 @@ import powie.powhax.commands.ClearChat;
 import powie.powhax.commands.Coords;
 import powie.powhax.commands.Xp;
 import powie.powhax.modules.*;
+import powie.powhax.settings.MapIdListSetting;
 
 import static powie.powhax.utils.Config.initializeConfig;
 
@@ -39,6 +42,7 @@ public class Powhax extends MeteorAddon {
         Modules.get().add(new FlySpeed());
         Modules.get().add(new HandDerp());
         Modules.get().add(new LavacastHelper());
+        Modules.get().add(new MapartBlock());
         Modules.get().add(new PriceScraper());
         Modules.get().add(new SmiteAura());
         Modules.get().add(new TrajectoriesPlus());
@@ -49,6 +53,13 @@ public class Powhax extends MeteorAddon {
         Commands.add(new Xp());
 
         // HUD
+
+        // Settings
+        SettingsWidgetFactory.registerCustomFactory(MapIdListSetting.class, theme -> (table, setting) -> {
+            MapIdListSetting s = (MapIdListSetting) setting; // temporary
+            WTable inner = table.add(theme.table()).expandX().widget();
+            MapIdListSetting.fillTable(theme, inner, (MapIdListSetting) setting);
+        });
     }
 
     @Override
