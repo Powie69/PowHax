@@ -38,7 +38,6 @@ public class Powhax extends MeteorAddon {
         Modules.get().add(new AutoLogin());
         Modules.get().add(new AutoPearlStasis());
         Modules.get().add(new BedrockSeedfinder());
-        Modules.get().add(new BlazeFarm());
         Modules.get().add(new DeathCommands());
         Modules.get().add(new FlySpeed());
         Modules.get().add(new HandDerp());
