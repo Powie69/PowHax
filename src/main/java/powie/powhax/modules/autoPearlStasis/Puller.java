@@ -1,6 +1,6 @@
 package powie.powhax.modules.autoPearlStasis;
 
-import com.sun.net.httpserver.HttpServer;
+import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
 import meteordevelopment.meteorclient.utils.Utils;
@@ -15,21 +15,21 @@ import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.BlockHitResult;
 
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
+import java.net.Socket;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
 
 public class Puller {
     private final AutoPearlStasis m;
-    private EmbeddedHttpServer httpServer;
+    protected final WorkerSocket socket;
+
     private boolean hasPearlLoaded;
     protected String mainAccountName;
 
     protected Puller(AutoPearlStasis module) throws IOException {
         m = module;
-        httpServer = new EmbeddedHttpServer(this, m.serverPort.get());
+        socket = new WorkerSocket(m.serverPort.get());
     }
 
     @EventHandler
@@ -39,6 +39,7 @@ public class Puller {
                 && PlayerUtils.isWithin(m.trapdoorPos.get(), 3)) {
                 hasPearlLoaded = true;
                 m.info("pearl loaded");
+                socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(true)));
             }
         }
     }
@@ -49,6 +50,7 @@ public class Puller {
             if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)) {
                 hasPearlLoaded = false;
                 m.info("pearl removed");
+                socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(false)));
             }
         }
     }
@@ -80,73 +82,92 @@ public class Puller {
         hasPearlLoaded = false;
     }
 
-    // ts so dumb
-    protected void stopHttpServer() {
-        if (httpServer == null) return;
-        httpServer.stop();
-        httpServer = null;
-    }
+    protected class WorkerSocket {
+        private static final long RECONNECT_DELAY_MS = 3000;
 
-    private static class EmbeddedHttpServer {
-        private final Puller puller;
-        private HttpServer server;
+        private final int port;
 
-        private EmbeddedHttpServer(Puller puller, int port) throws IOException {
-            this.puller = puller;
-            start(port);
+        private volatile LineSocket connection;
+        private volatile boolean running = true;
+
+        private WorkerSocket(int port) {
+            this.port = port;
+
+            Thread connectThread = new Thread(this::connectLoop, "pearl-stasis-worker-connect");
+            connectThread.setDaemon(true);
+            connectThread.start();
         }
 
-        private void start(int port) throws IOException {
-            if (server != null) {
+        private void connectLoop() {
+            while (running) {
+                try {
+                    m.info("Connecting to localhost:" + port);
+                    Socket socket = new Socket("localhost", port);
+                    m.info("Connected to host.");
+
+                    connection = new LineSocket(socket);
+                    connection.listen(this::onMessage, () -> m.info("Connection lost."));
+
+                    while (running && connection.isOpen()) {
+                        sleep(200);
+                    }
+                } catch (IOException e) {
+                    if (running) m.info("Connection failed: " + e.getMessage());
+                }
+
+                if (!running) return;
+
+                m.info("Reconnecting in " + (RECONNECT_DELAY_MS / 1000) + " seconds...");
+                sleep(RECONNECT_DELAY_MS);
+            }
+        }
+
+        private void onMessage(String message) {
+            m.info("Host: " + message);
+
+            JsonObject obj;
+            try {
+                obj = GSON.fromJson(message, JsonObject.class);
+            } catch (Exception e) {
+                m.info("Ignoring bad message from host: " + message);
                 return;
             }
 
-            server = HttpServer.create(
-                new InetSocketAddress("localhost", port),
-                0
-            );
+            String type = obj.has("type") ? obj.get("type").getAsString() : "";
 
-            server.createContext("/ping", exchange -> {
-                if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                    exchange.sendResponseHeaders(405, -1); // 405 Method Not Allowed
-                    return;
+            switch (type) {
+                case "setUsername" -> {
+                    mainAccountName = obj.get("username").getAsString();
+                    send(GSON.toJson(new AutoPearlStasis.PullerStatus(mc.player.getName().toString(), Utils.getWorldName())));
+                    m.info("Set main account to: " + mainAccountName);
                 }
-
-                AutoPearlStasis.PingRequest pingRequest = GSON.fromJson(
-                    new String(exchange.getRequestBody().readAllBytes()),
-                    AutoPearlStasis.PingRequest.class);
-                puller.mainAccountName = pingRequest.MainUsername();
-
-                String response = GSON.toJson(new AutoPearlStasis.PingResponse(
-                    mc.player.getName().getString(),
-                    Utils.getWorldName()));
-
-                exchange.sendResponseHeaders(200, response.length());
-
-                try (OutputStream output = exchange.getResponseBody()) {
-                    output.write(response.getBytes());
+                case "pull" -> {
+                    m.info("Pull request: " + obj.get("reason").getAsString());
+                    pullPearl();
                 }
-            });
+                default -> m.info("Ignoring unknown message from host: " + message);
+            }
+        }
 
-            server.createContext("/pull", exchange -> {
-                if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
-                    exchange.sendResponseHeaders(405, -1); // 405 Method Not Allowed
-                    return;
-                }
-
-                puller.pullPearl();
-
-                exchange.sendResponseHeaders(200, -1);
-                exchange.close();
-            });
-
-            server.start();
+        protected void send(String message) {
+            if (connection != null) connection.send(message);
         }
 
         protected void stop() {
-            if (server == null) return;
-            server.stop(0);
-            server = null;
+            running = false;
+
+            if (connection != null) connection.close();
+
+            m.info("Worker stopped.");
+        }
+
+        private void sleep(long ms) {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                running = false;
+            }
         }
     }
 }

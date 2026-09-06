@@ -1,9 +1,9 @@
 package powie.powhax.modules.autoPearlStasis;
 
+import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.friends.Friends;
-import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
@@ -11,22 +11,22 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.player.Player;
 
-import java.net.URI;
-import java.net.UnknownHostException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
 
 public class Main {
     private final AutoPearlStasis m;
-    private final HttpClient client = HttpClient.newHttpClient();
+
     private int pops;
+    protected final HostSocket socket;
 
     public Main(AutoPearlStasis module) {
         m = module;
+        socket = new HostSocket(m.serverPort.get());
     }
 
     @EventHandler
@@ -75,61 +75,106 @@ public class Main {
 
     protected void requestPull(String reason) {
         if (mc.player.isDeadOrDying()) return;
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + m.serverPort.get() + "/pull"))
-            .GET()
-            .build();
-
-        client.sendAsync(
-            request,
-            HttpResponse.BodyHandlers.discarding()
-        ).thenAccept(_ -> {
-            m.info("Pulled: " + reason);
-        }).exceptionally(e -> {
-            if (e.getCause() instanceof UnknownHostException) {
-                m.error("Connection error: Puller's side is not active");
-            } else {
-                m.error("Connection error: " + e.getMessage());
-            }
-            return null;
-        });
+        socket.send(GSON.toJson(new AutoPearlStasis.PullRequest(reason)));
     }
 
     protected void testConnection() {
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:" + m.serverPort.get() + "/ping"))
-            .POST(HttpRequest.BodyPublishers.ofString(
-                GSON.toJson(new AutoPearlStasis.PingRequest(mc.player.getName().getString())))
-            )
-            .build();
-
-        client.sendAsync(
-            request,
-            HttpResponse.BodyHandlers.ofString()
-        ).thenAccept(response -> {
-            if (response.statusCode() >= 400) {
-                m.error("Connection error");
-                return;
-            }
-
-            AutoPearlStasis.PingResponse ping = GSON.fromJson(response.body(), AutoPearlStasis.PingResponse.class);
-            if (ping.server().isEmpty()) {
-                m.error("Connection found but Puller is not online");
-                return;
-            }
-            if (!ping.server().equals(Utils.getWorldName())) {
-                m.error("Connection found but Puller is on the wrong server: " + ping.server());
-                return;
-            }
-
-            m.info("Connection found. Puller's username is: " + ping.PullerUsername());
-        }).exceptionally(e -> {
-            if (e.getCause() instanceof UnknownHostException) {
-                m.error("Connection error: Puller's side is not active");
-            } else {
-                m.error("Connection error: " + e.getMessage());
-            }
-            return null;
-        });
+//        m.info(socket.connection.getRemoteAddress());
+        socket.send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
     }
+
+    protected class HostSocket {
+        private final int port;
+
+        private ServerSocket serverSocket;
+        private volatile LineSocket connection;
+        private volatile boolean running = true;
+
+        private HostSocket(int port) {
+            this.port = port;
+
+            Thread acceptThread = new Thread(this::acceptLoop, "pearl-stasis-host-accept");
+            acceptThread.setDaemon(true);
+            acceptThread.start();
+        }
+
+        private void acceptLoop() {
+            try {
+                serverSocket = new ServerSocket(port);
+                m.info("Host listening on port " + port);
+
+                while (running) {
+                    m.info("Waiting for worker...");
+
+                    Socket socket = serverSocket.accept();
+                    m.info("Worker connected: " + socket.getRemoteSocketAddress());
+                    connection = new LineSocket(socket);
+                    connection.listen(this::onMessage, () -> m.info("Puller disconnected."));
+
+                    send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
+
+                    // Don't accept() again until the current worker is gone.
+                    while (running && connection.isOpen()) {
+                        sleep(200);
+                    }
+                }
+            } catch (IOException e) {
+                if (running) m.info("Host error: " + e.getMessage());
+            }
+        }
+
+        private void onMessage(String message) {
+            m.info("Worker: " + message);
+
+            JsonObject obj;
+            try {
+                obj = GSON.fromJson(message, JsonObject.class);
+            } catch (Exception e) {
+                m.info("Ignoring bad message from host: " + message);
+                return;
+            }
+
+            String type = obj.has("type") ? obj.get("type").getAsString() : "";
+
+            switch (type) {
+                case AutoPearlStasis.PullerStatus.TYPE -> {
+                    m.info("Worker status: " + obj.get("status").getAsString());
+                }
+                case AutoPearlStasis.PearlStatus.TYPE -> {
+                    if (obj.get("loaded").getAsBoolean()) {
+                        m.info("pearl loaded.");
+                    } else {
+                        m.info("pearl destroyed.");
+                    }
+                }
+                default -> throw new IllegalStateException("Unexpected value: " + type);
+            }
+        }
+
+        protected void send(String message) {
+            if (connection != null) connection.send(message);
+        }
+
+        protected void stop() {
+            running = false;
+
+            if (connection != null) connection.close();
+
+            try {
+                if (serverSocket != null) serverSocket.close();
+            } catch (IOException ignored) {
+            }
+
+            m.info("Host stopped.");
+        }
+
+        private void sleep(long ms) {
+            try {
+                Thread.sleep(ms);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
 }

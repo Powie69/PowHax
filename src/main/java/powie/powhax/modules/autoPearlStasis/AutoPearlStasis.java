@@ -29,7 +29,7 @@ public class AutoPearlStasis extends Module {
             - Puller: The account that will pull the pearl
             """)
         .defaultValue(Mode.Main)
-            .onChanged(v -> handleModeSwitchingWhileActive(v))
+        .onChanged(v -> handleModeSwitchingWhileActive(v))
         .build()
     );
 
@@ -121,6 +121,8 @@ public class AutoPearlStasis extends Module {
     private Main main;
     private Puller puller;
 
+    private String currentActiveMode;
+
     /**
      * <p>TODO: auto pearl reload</p>
      */
@@ -146,31 +148,21 @@ public class AutoPearlStasis extends Module {
     @Override
     public void onActivate() {
         if (mode.get() == Mode.Main) {
-            main = new Main(this);
-            MeteorClient.EVENT_BUS.subscribe(main);
-            main.testConnection();
+            startMainMode();
         } else {
-            try {
-                puller = new Puller(this);
-            } catch (IOException e) {
-                error(String.valueOf(e));
-                toggle();
-            }
-            MeteorClient.EVENT_BUS.subscribe(puller);
+            startPullerMode();
         }
+        currentActiveMode = mode.get().name();
     }
 
     @Override
     public void onDeactivate() {
         if (mode.get() == Mode.Main) {
-            if (main != null) MeteorClient.EVENT_BUS.unsubscribe(main);
-            main = null;
+            stopMainMode();
         } else {
-            if (puller == null) return;
-            MeteorClient.EVENT_BUS.unsubscribe(puller);
-            puller.stopHttpServer();
-            puller = null;
+            stopPullerMode();
         }
+        currentActiveMode = null;
     }
 
     @Override
@@ -182,12 +174,53 @@ public class AutoPearlStasis extends Module {
         }
     }
 
+    private void startPullerMode() {
+        try {
+            puller = new Puller(this);
+        } catch (IOException e) {
+            error(String.valueOf(e));
+            toggle();
+        }
+        MeteorClient.EVENT_BUS.subscribe(puller);
+    }
+
+    private void startMainMode() {
+        main = new Main(this);
+        MeteorClient.EVENT_BUS.subscribe(main);
+        main.testConnection();
+    }
+
+    private void stopPullerMode() {
+        if (puller == null) return;
+        MeteorClient.EVENT_BUS.unsubscribe(puller);
+        puller.socket.stop();
+        puller = null;
+    }
+
+    private void stopMainMode() {
+        if (main == null) return;
+        MeteorClient.EVENT_BUS.unsubscribe(main);
+        main.socket.stop();
+        main = null;
+    }
+
     private void handleTriggerBind() {
         if (main != null) main.requestPull("Pressed bind");
     }
 
     private void handleModeSwitchingWhileActive(Mode v) {
+        info("mode" + v);
+        if (!isActive()) return;
+        if (currentActiveMode == null || currentActiveMode.equals(v.name())) return;
 
+        if (v == Mode.Main) {
+            stopPullerMode();
+            startMainMode();
+        } else {
+            stopMainMode();
+            startPullerMode();
+        }
+        currentActiveMode = v.name();
     }
 
     protected enum Mode {
@@ -195,9 +228,23 @@ public class AutoPearlStasis extends Module {
         Puller
     }
 
-    protected record PingRequest(String MainUsername) {
+    record SetUsername(String type, String username) {
+        static final String TYPE = "setUsername";
+        SetUsername(String username) { this(TYPE, username); }
     }
 
-    protected record PingResponse(String PullerUsername, String server) {
+    record PullRequest(String type, String reason) {
+        static final String TYPE = "pull";
+        PullRequest(String reason) { this(TYPE, reason); }
+    }
+
+    record PearlStatus(String type, boolean loaded) {
+        static final String TYPE = "pearlStatus";
+        PearlStatus(boolean loaded) { this(TYPE, loaded); }
+    }
+
+    record PullerStatus(String type, String pullerName, String server) {
+        static final String TYPE = "pullerStatus";
+        PullerStatus(String pullerName, String server) { this(TYPE, pullerName, server); }
     }
 }
