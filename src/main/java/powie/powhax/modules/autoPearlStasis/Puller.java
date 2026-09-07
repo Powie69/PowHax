@@ -1,6 +1,5 @@
 package powie.powhax.modules.autoPearlStasis;
 
-import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.events.entity.EntityAddedEvent;
 import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
 import meteordevelopment.meteorclient.utils.Utils;
@@ -19,12 +18,13 @@ import java.net.Socket;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
+import static powie.powhax.Powhax.LOG;
 
 public class Puller {
     private final AutoPearlStasis m;
     protected final WorkerSocket socket;
 
-    private boolean hasPearlLoaded;
+    protected boolean hasPearlLoaded;
     protected String mainAccountName;
 
     protected Puller(AutoPearlStasis module) throws IOException {
@@ -36,7 +36,7 @@ public class Puller {
     private void onEntityAdded(EntityAddedEvent event) {
         if (event.entity instanceof ThrownEnderpearl pearl) {
             if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
-                && PlayerUtils.isWithin(m.trapdoorPos.get(), 3)) {
+                && PlayerUtils.isWithin(m.trapdoorPos.get(), 2)) {
                 hasPearlLoaded = true;
                 m.info("pearl loaded");
                 socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(true)));
@@ -101,12 +101,13 @@ public class Puller {
         private void connectLoop() {
             while (running) {
                 try {
-                    m.info("Connecting to localhost:" + port);
                     Socket socket = new Socket("localhost", port);
                     m.info("Connected to host.");
 
                     connection = new LineSocket(socket);
                     connection.listen(this::onMessage, () -> m.info("Connection lost."));
+
+                    send(GSON.toJson(new AutoPearlStasis.PearlStatus(hasPearlLoaded)));
 
                     while (running && connection.isOpen()) {
                         sleep(200);
@@ -117,35 +118,31 @@ public class Puller {
 
                 if (!running) return;
 
-                m.info("Reconnecting in " + (RECONNECT_DELAY_MS / 1000) + " seconds...");
+                m.info("Attempting to reconnect in " + (RECONNECT_DELAY_MS / 1000) + " seconds...");
                 sleep(RECONNECT_DELAY_MS);
             }
         }
 
         private void onMessage(String message) {
-            m.info("Host: " + message);
-
-            JsonObject obj;
+            AutoPearlStasis.NetworkMessage msg;
             try {
-                obj = GSON.fromJson(message, JsonObject.class);
+                msg = AutoPearlStasis.NetworkMessage.decode(message);
             } catch (Exception e) {
-                m.info("Ignoring bad message from host: " + message);
+                m.error("Ignoring bad message from host: " + message);
                 return;
             }
 
-            String type = obj.has("type") ? obj.get("type").getAsString() : "";
-
-            switch (type) {
-                case "setUsername" -> {
-                    mainAccountName = obj.get("username").getAsString();
-                    send(GSON.toJson(new AutoPearlStasis.PullerStatus(mc.player.getName().toString(), Utils.getWorldName())));
+            switch (msg) {
+                case AutoPearlStasis.SetUsername su -> {
+                    mainAccountName = su.username();
+                    send(GSON.toJson(new AutoPearlStasis.PullerStatus(mc.player.getName().getString(), Utils.getWorldName())));
                     m.info("Set main account to: " + mainAccountName);
                 }
-                case "pull" -> {
-                    m.info("Pull request: " + obj.get("reason").getAsString());
+                case AutoPearlStasis.PullRequest pr -> {
+                    m.info("Pull request: " + pr.reason());
                     pullPearl();
                 }
-                default -> m.info("Ignoring unknown message from host: " + message);
+                default -> LOG.error("Ignoring unexpected message from host: {}", msg);
             }
         }
 
@@ -155,9 +152,7 @@ public class Puller {
 
         protected void stop() {
             running = false;
-
             if (connection != null) connection.close();
-
             m.info("Worker stopped.");
         }
 

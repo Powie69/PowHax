@@ -1,9 +1,9 @@
 package powie.powhax.modules.autoPearlStasis;
 
-import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.friends.Friends;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
@@ -17,11 +17,13 @@ import java.net.Socket;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
+import static powie.powhax.Powhax.LOG;
 
 public class Main {
     private final AutoPearlStasis m;
 
-    private int pops;
+    protected boolean hasPearlLoaded;
+    protected int pops;
     protected final HostSocket socket;
 
     public Main(AutoPearlStasis module) {
@@ -38,7 +40,9 @@ public class Main {
         if (entity == null || !entity.equals(mc.player)) return;
 
         pops++;
-        if (m.totemPops.get() > 0 && pops >= m.totemPops.get()) requestPull("Popped " + pops + " totems.");
+        if (m.totemPops.get() <= 0 || pops < m.totemPops.get()) return;
+        requestPull("Popped " + pops + " totems.");
+        pops = 0;
     }
 
     @EventHandler
@@ -75,11 +79,22 @@ public class Main {
 
     protected void requestPull(String reason) {
         if (mc.player.isDeadOrDying()) return;
+        if (!hasPearlLoaded) {
+            m.error("Pearl not loaded");
+            return;
+        }
+        m.info("Pearl pulled: " + reason);
         socket.send(GSON.toJson(new AutoPearlStasis.PullRequest(reason)));
     }
 
+    /**
+     * Puller will send back {@link AutoPearlStasis#PullerStatus}
+     *
+     * @return true if no connection
+     */
     protected void testConnection() {
-//        m.info(socket.connection.getRemoteAddress());
+        if (socket.connection == null) return;
+        m.info(socket.connection.getRemoteAddress());
         socket.send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
     }
 
@@ -101,54 +116,55 @@ public class Main {
         private void acceptLoop() {
             try {
                 serverSocket = new ServerSocket(port);
-                m.info("Host listening on port " + port);
 
                 while (running) {
-                    m.info("Waiting for worker...");
+                    m.info("Waiting for Puller...");
 
                     Socket socket = serverSocket.accept();
-                    m.info("Worker connected: " + socket.getRemoteSocketAddress());
+                    m.info("Puller connected: " + socket.getRemoteSocketAddress());
                     connection = new LineSocket(socket);
                     connection.listen(this::onMessage, () -> m.info("Puller disconnected."));
 
                     send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
 
-                    // Don't accept() again until the current worker is gone.
                     while (running && connection.isOpen()) {
-                        sleep(200);
+                        try {
+                            Thread.sleep(200);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
                     }
                 }
             } catch (IOException e) {
-                if (running) m.info("Host error: " + e.getMessage());
+                if (running) {
+                    m.error("Deactivating: " + e.getMessage());
+                    m.disable();
+                }
             }
         }
 
         private void onMessage(String message) {
-            m.info("Worker: " + message);
-
-            JsonObject obj;
+            AutoPearlStasis.NetworkMessage msg;
             try {
-                obj = GSON.fromJson(message, JsonObject.class);
+                msg = AutoPearlStasis.NetworkMessage.decode(message);
             } catch (Exception e) {
-                m.info("Ignoring bad message from host: " + message);
+                m.error("Ignoring bad message from Puller: " + message);
                 return;
             }
 
-            String type = obj.has("type") ? obj.get("type").getAsString() : "";
-
-            switch (type) {
-                case AutoPearlStasis.PullerStatus.TYPE -> {
-                    m.info("Worker status: " + obj.get("status").getAsString());
-                }
-                case AutoPearlStasis.PearlStatus.TYPE -> {
-                    if (obj.get("loaded").getAsBoolean()) {
-                        m.info("pearl loaded.");
-                    } else {
-                        m.info("pearl destroyed.");
+            switch (msg) {
+                case AutoPearlStasis.PullerStatus ps -> {
+                    if (!ps.server().equalsIgnoreCase(Utils.getWorldName())) {
+                        m.error("Puller is connected but they're not on the same server");
                     }
                 }
-                default -> throw new IllegalStateException("Unexpected value: " + type);
+                case AutoPearlStasis.PearlStatus ps -> {
+                    hasPearlLoaded = ps.loaded();
+                    m.info(hasPearlLoaded ? "pearl loaded." : "pearl destroyed.");
+                }
+                default -> LOG.error("Ignoring unexpected message from Puller: {}", msg);
             }
+
         }
 
         protected void send(String message) {
@@ -166,14 +182,6 @@ public class Main {
             }
 
             m.info("Host stopped.");
-        }
-
-        private void sleep(long ms) {
-            try {
-                Thread.sleep(ms);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
         }
     }
 

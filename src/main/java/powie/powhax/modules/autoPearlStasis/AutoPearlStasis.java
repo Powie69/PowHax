@@ -1,5 +1,6 @@
 package powie.powhax.modules.autoPearlStasis;
 
+import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
@@ -15,6 +16,8 @@ import powie.powhax.Powhax;
 import java.io.IOException;
 import java.util.Set;
 
+import static powie.powhax.Powhax.GSON;
+
 public class AutoPearlStasis extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgTriggers = settings.createGroup("Triggers");
@@ -29,7 +32,7 @@ public class AutoPearlStasis extends Module {
             - Puller: The account that will pull the pearl
             """)
         .defaultValue(Mode.Main)
-        .onChanged(v -> handleModeSwitchingWhileActive(v))
+        .onChanged(this::handleModeSwitchingWhileActive)
         .build()
     );
 
@@ -139,9 +142,10 @@ public class AutoPearlStasis extends Module {
 
         WButton testConnectionButton = l.add(theme.button("test Connection")).expandX().widget();
         testConnectionButton.action = () -> {
-            if (main != null) main.testConnection();
+            if (mode.get() == Mode.Main) {
+                main.testConnection();
+            }
         };
-
         return l;
     }
 
@@ -168,7 +172,8 @@ public class AutoPearlStasis extends Module {
     @Override
     public String getInfoString() {
         if (mode.get() == Mode.Main) {
-            return "Main";
+            if (main == null) return "Main | Not Connected";
+            return "Main | Pearl loaded: " + (main.hasPearlLoaded ? "Yes" : "No") + " | Popped: " + main.pops;
         } else {
             return "Puller | " + (puller != null ? puller.mainAccountName : "");
         }
@@ -204,10 +209,6 @@ public class AutoPearlStasis extends Module {
         main = null;
     }
 
-    private void handleTriggerBind() {
-        if (main != null) main.requestPull("Pressed bind");
-    }
-
     private void handleModeSwitchingWhileActive(Mode v) {
         info("mode" + v);
         if (!isActive()) return;
@@ -223,28 +224,62 @@ public class AutoPearlStasis extends Module {
         currentActiveMode = v.name();
     }
 
+    private void handleTriggerBind() {
+        if (main != null) main.requestPull("Pressed bind");
+    }
+
     protected enum Mode {
         Main,
         Puller
     }
 
-    record SetUsername(String type, String username) {
+    // Communications stuff
+    sealed interface NetworkMessage {
+        static NetworkMessage decode(String json) {
+            JsonObject obj = GSON.fromJson(json, JsonObject.class);
+            String type = obj.has("type") ? obj.get("type").getAsString() : "";
+
+            return switch (type) {
+                case SetUsername.TYPE -> GSON.fromJson(obj, SetUsername.class);
+                case PullRequest.TYPE -> GSON.fromJson(obj, PullRequest.class);
+                case PearlStatus.TYPE -> GSON.fromJson(obj, PearlStatus.class);
+                case PullerStatus.TYPE -> GSON.fromJson(obj, PullerStatus.class);
+                default -> throw new IllegalArgumentException("Unknown message type '" + type + "' in: " + json);
+            };
+        }
+    }
+
+    // Main to Puller
+    record SetUsername(String type, String username) implements NetworkMessage {
         static final String TYPE = "setUsername";
-        SetUsername(String username) { this(TYPE, username); }
+
+        SetUsername(String username) {
+            this(TYPE, username);
+        }
     }
 
-    record PullRequest(String type, String reason) {
+    record PullRequest(String type, String reason) implements NetworkMessage {
         static final String TYPE = "pull";
-        PullRequest(String reason) { this(TYPE, reason); }
+
+        PullRequest(String reason) {
+            this(TYPE, reason);
+        }
     }
 
-    record PearlStatus(String type, boolean loaded) {
+    // Puller to Main
+    record PearlStatus(String type, boolean loaded) implements NetworkMessage {
         static final String TYPE = "pearlStatus";
-        PearlStatus(boolean loaded) { this(TYPE, loaded); }
+
+        PearlStatus(boolean loaded) {
+            this(TYPE, loaded);
+        }
     }
 
-    record PullerStatus(String type, String pullerName, String server) {
+    record PullerStatus(String type, String pullerUsername, String server) implements NetworkMessage {
         static final String TYPE = "pullerStatus";
-        PullerStatus(String pullerName, String server) { this(TYPE, pullerName, server); }
+
+        PullerStatus(String pullerUsername, String server) {
+            this(TYPE, pullerUsername, server);
+        }
     }
 }
