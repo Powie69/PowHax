@@ -8,9 +8,13 @@ import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.misc.MeteorStarscript;
 import meteordevelopment.meteorclient.utils.player.ChatUtils;
 import meteordevelopment.orbit.EventHandler;
+import net.minecraft.network.protocol.game.ServerboundClientCommandPacket;
 import powie.powhax.Powhax;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Queue;
 
 public class DeathCommands extends Module {
     private final SettingGroup sgGeneral = this.settings.getDefaultGroup();
@@ -103,8 +107,10 @@ public class DeathCommands extends Module {
     }
 
     @EventHandler
-    private void onReceivePacket(PacketEvent.Receive event) {
-        if (!(event.packet instanceof net.minecraft.network.protocol.game.ClientboundRespawnPacket) || running) return;
+    private void onSentPacket(PacketEvent.Sent event) {
+        if (!(event.packet instanceof ServerboundClientCommandPacket p)
+            || p.getAction() != ServerboundClientCommandPacket.Action.PERFORM_RESPAWN
+            || running) return;
 
         commandQueue.clear();
 
