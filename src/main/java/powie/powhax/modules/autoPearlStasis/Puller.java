@@ -12,9 +12,13 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
@@ -23,11 +27,11 @@ import static powie.powhax.Powhax.LOG;
 public class Puller {
     private final AutoPearlStasis m;
     protected final WorkerSocket socket;
+    protected final Set<UUID> hasPearlLoaded = new HashSet<>();
 
-    protected boolean hasPearlLoaded;
     protected String mainAccountName;
 
-    protected Puller(AutoPearlStasis module) throws IOException {
+    protected Puller(AutoPearlStasis module) {
         m = module;
         socket = new WorkerSocket(m.serverPort.get());
     }
@@ -35,11 +39,12 @@ public class Puller {
     @EventHandler
     private void onEntityAdded(EntityAddedEvent event) {
         if (event.entity instanceof ThrownEnderpearl pearl) {
+            m.info("added: " + pearl.getUUID());
             if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
-                && PlayerUtils.isWithin(m.trapdoorPos.get(), 2)) {
-                hasPearlLoaded = true;
+                && isWithinTrapdoor(pearl.position())) {
+                hasPearlLoaded.add(pearl.getUUID());
                 m.info("pearl loaded");
-                socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(true)));
+                if (!hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(true)));
             }
         }
     }
@@ -47,17 +52,18 @@ public class Puller {
     @EventHandler
     private void onEntityRemoved(EntityRemovedEvent event) {
         if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)) {
-                hasPearlLoaded = false;
+            m.info("removed: " + pearl.getUUID());
+            if (hasPearlLoaded.contains(pearl.getUUID())) {
+                hasPearlLoaded.remove(pearl.getUUID());
                 m.info("pearl removed");
-                socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(false)));
+                if (hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(false)));
             }
         }
     }
 
     protected void pullPearl() {
         if (m.mode.get().equals(AutoPearlStasis.Mode.Main)) return;
-        if (!hasPearlLoaded) return;
+        if (hasPearlLoaded.isEmpty()) return;
 
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             m.error("selected position is not a trapdoor");
@@ -78,8 +84,11 @@ public class Puller {
                 false),
             InteractionHand.MAIN_HAND,
             true);
+    }
 
-        hasPearlLoaded = false;
+    private boolean isWithinTrapdoor(Vec3 pearlPos) {
+        return Math.floor(pearlPos.x) == m.trapdoorPos.get().getX()
+            && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
     }
 
     protected class WorkerSocket {
@@ -107,7 +116,7 @@ public class Puller {
                     connection = new LineSocket(socket);
                     connection.listen(this::onMessage, () -> m.info("Connection lost."));
 
-                    send(GSON.toJson(new AutoPearlStasis.PearlStatus(hasPearlLoaded)));
+                    send(GSON.toJson(new AutoPearlStasis.PearlStatus(!hasPearlLoaded.isEmpty())));
 
                     while (running && connection.isOpen()) {
                         sleep(200);
@@ -133,14 +142,14 @@ public class Puller {
             }
 
             switch (msg) {
+                case AutoPearlStasis.PullRequest pr -> {
+                    m.info("Pull request: " + pr.reason());
+                    pullPearl();
+                }
                 case AutoPearlStasis.SetUsername su -> {
                     mainAccountName = su.username();
                     send(GSON.toJson(new AutoPearlStasis.PullerStatus(mc.player.getName().getString(), Utils.getWorldName())));
                     m.info("Set main account to: " + mainAccountName);
-                }
-                case AutoPearlStasis.PullRequest pr -> {
-                    m.info("Pull request: " + pr.reason());
-                    pullPearl();
                 }
                 default -> LOG.error("Ignoring unexpected message from host: {}", msg);
             }

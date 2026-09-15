@@ -13,7 +13,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.EntityType;
 import powie.powhax.Powhax;
 
-import java.io.IOException;
 import java.util.Set;
 
 import static powie.powhax.Powhax.GSON;
@@ -128,6 +127,7 @@ public class AutoPearlStasis extends Module {
 
     /**
      * <p>TODO: auto pearl reload</p>
+     * <p>TODO: better ux for folia servers</p>
      */
     public AutoPearlStasis() {
         super(Powhax.CATEGORY,
@@ -180,12 +180,7 @@ public class AutoPearlStasis extends Module {
     }
 
     private void startPullerMode() {
-        try {
-            puller = new Puller(this);
-        } catch (IOException e) {
-            error(String.valueOf(e));
-            toggle();
-        }
+        puller = new Puller(this);
         MeteorClient.EVENT_BUS.subscribe(puller);
     }
 
@@ -210,7 +205,6 @@ public class AutoPearlStasis extends Module {
     }
 
     private void handleModeSwitchingWhileActive(Mode v) {
-        info("mode" + v);
         if (!isActive()) return;
         if (currentActiveMode == null || currentActiveMode.equals(v.name())) return;
 
@@ -240,8 +234,8 @@ public class AutoPearlStasis extends Module {
             String type = obj.has("type") ? obj.get("type").getAsString() : "";
 
             return switch (type) {
-                case SetUsername.TYPE -> GSON.fromJson(obj, SetUsername.class);
                 case PullRequest.TYPE -> GSON.fromJson(obj, PullRequest.class);
+                case SetUsername.TYPE -> GSON.fromJson(obj, SetUsername.class);
                 case PearlStatus.TYPE -> GSON.fromJson(obj, PearlStatus.class);
                 case PullerStatus.TYPE -> GSON.fromJson(obj, PullerStatus.class);
                 default -> throw new IllegalArgumentException("Unknown message type '" + type + "' in: " + json);
@@ -250,19 +244,19 @@ public class AutoPearlStasis extends Module {
     }
 
     // Main to Puller
-    record SetUsername(String type, String username) implements NetworkMessage {
-        static final String TYPE = "setUsername";
-
-        SetUsername(String username) {
-            this(TYPE, username);
-        }
-    }
-
     record PullRequest(String type, String reason) implements NetworkMessage {
         static final String TYPE = "pull";
 
         PullRequest(String reason) {
             this(TYPE, reason);
+        }
+    }
+
+    record SetUsername(String type, String username) implements NetworkMessage {
+        static final String TYPE = "setUsername";
+
+        SetUsername(String username) {
+            this(TYPE, username);
         }
     }
 

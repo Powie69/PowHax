@@ -79,6 +79,10 @@ public class Main {
 
     protected void requestPull(String reason) {
         if (mc.player.isDeadOrDying()) return;
+        if (!socket.connection.isOpen()) {
+            m.error("Puller not found");
+            return;
+        }
         if (!hasPearlLoaded) {
             m.error("Pearl not loaded");
             return;
