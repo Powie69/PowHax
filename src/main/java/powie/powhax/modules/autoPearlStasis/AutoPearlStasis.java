@@ -8,6 +8,7 @@ import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.EntityType;
@@ -20,7 +21,7 @@ import static powie.powhax.Powhax.GSON;
 public class AutoPearlStasis extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgTriggers = settings.createGroup("Triggers");
-    //    private final SettingGroup sgHost = settings.createGroup("Host (Main)");
+    private final SettingGroup sgHost = settings.createGroup("Host (Main)");
     private final SettingGroup sgPuller = settings.createGroup("Worker (Puller)");
 
     // General
@@ -97,24 +98,26 @@ public class AutoPearlStasis extends Module {
     );
 
     // Main
-//    private final Setting<Boolean> autoReloadPearl = sgHost.add(new BoolSetting.Builder()
-//        .name("auto-reload-pearl")
-//        .description("Automatically reloads your pearl upon activation")
-//        .defaultValue(true)
-//        .build()
-//    );
+    protected final Setting<Boolean> autoReloadPearl = sgHost.add(new BoolSetting.Builder()
+        .name("auto-reload-pearl")
+        .description("Automatically reloads your pearl upon activation")
+        .defaultValue(true)
+        .visible(() -> mode.get() == Mode.Main)
+        .build()
+    );
 
     // Puller
     protected final Setting<BlockPos> trapdoorPos = sgPuller.add(new BlockPosSetting.Builder()
         .name("trapdoor-position")
         .description("The position of the trapdoor")
+        .onChanged(this::handleTrapdoorBlockPosChange)
         .visible(() -> mode.get() == Mode.Puller)
         .build()
     );
 
     protected final Setting<Boolean> rotate = sgPuller.add(new BoolSetting.Builder()
         .name("rotate")
-        .description("Determines whether you should rotate towards the trapdoor.")
+        .description("whether you should rotate towards the trapdoor.")
         .defaultValue(false)
         .visible(() -> mode.get() == Mode.Puller)
         .build()
@@ -218,6 +221,11 @@ public class AutoPearlStasis extends Module {
         currentActiveMode = v.name();
     }
 
+    private void handleTrapdoorBlockPosChange(BlockPos blockPos) {
+        if (mode.get() != Mode.Puller || puller == null || !Utils.canUpdate()) return;
+        puller.sendPullerStatus();
+    }
+
     private void handleTriggerBind() {
         if (main != null) main.requestPull("Pressed bind");
     }
@@ -269,11 +277,12 @@ public class AutoPearlStasis extends Module {
         }
     }
 
-    record PullerStatus(String type, String pullerUsername, String server) implements NetworkMessage {
+    record PullerStatus(String type, String pullerUsername, String server,
+                        BlockPos trapdoorPos) implements NetworkMessage {
         static final String TYPE = "pullerStatus";
 
-        PullerStatus(String pullerUsername, String server) {
-            this(TYPE, pullerUsername, server);
+        PullerStatus(String pullerUsername, String server, BlockPos trapdoorPos) {
+            this(TYPE, pullerUsername, server, trapdoorPos);
         }
     }
 }

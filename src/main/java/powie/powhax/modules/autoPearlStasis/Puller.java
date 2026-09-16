@@ -39,8 +39,8 @@ public class Puller {
     @EventHandler
     private void onEntityAdded(EntityAddedEvent event) {
         if (event.entity instanceof ThrownEnderpearl pearl) {
-            m.info("added: " + pearl.getUUID());
-            if (pearl.getOwner() != null && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
+            if (pearl.getOwner() != null
+                && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
                 && isWithinTrapdoor(pearl.position())) {
                 hasPearlLoaded.add(pearl.getUUID());
                 m.info("pearl loaded");
@@ -52,19 +52,17 @@ public class Puller {
     @EventHandler
     private void onEntityRemoved(EntityRemovedEvent event) {
         if (event.entity instanceof ThrownEnderpearl pearl) {
-            m.info("removed: " + pearl.getUUID());
             if (hasPearlLoaded.contains(pearl.getUUID())) {
                 hasPearlLoaded.remove(pearl.getUUID());
-                m.info("pearl removed");
                 if (hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(false)));
             }
         }
     }
 
     protected void pullPearl() {
-        if (m.mode.get().equals(AutoPearlStasis.Mode.Main)) return;
         if (hasPearlLoaded.isEmpty()) return;
 
+        // TODO: also send error messages to main
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             m.error("selected position is not a trapdoor");
             return;
@@ -73,10 +71,22 @@ public class Puller {
             m.error("selected position is out of reach");
             return;
         }
+        if (!mc.level.getBlockState(m.trapdoorPos.get()).getValue(TrapDoorBlock.OPEN)) {
+            m.error("trapdoor is closed");
+            return;
+        }
 
-        if (m.rotate.get())
-            Rotations.rotate(Rotations.getYaw(m.trapdoorPos.get()), Rotations.getPitch(m.trapdoorPos.get()));
+        if (m.rotate.get()) {
+            Rotations.rotate(
+                Rotations.getYaw(m.trapdoorPos.get()),
+                Rotations.getPitch(m.trapdoorPos.get()),
+                this::interactWithTrapdoor);
+        } else {
+            interactWithTrapdoor();
+        }
+    }
 
+    private void interactWithTrapdoor() {
         BlockUtils.interact(new BlockHitResult(
                 Utils.vec3(m.trapdoorPos.get()),
                 Direction.UP,
@@ -89,6 +99,14 @@ public class Puller {
     private boolean isWithinTrapdoor(Vec3 pearlPos) {
         return Math.floor(pearlPos.x) == m.trapdoorPos.get().getX()
             && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
+    }
+
+    protected void sendPullerStatus() {
+        socket.send(GSON.toJson(new AutoPearlStasis.PullerStatus(
+            mc.player.getName().getString(),
+            Utils.getWorldName(),
+            m.trapdoorPos.get()
+        )));
     }
 
     protected class WorkerSocket {
@@ -148,7 +166,7 @@ public class Puller {
                 }
                 case AutoPearlStasis.SetUsername su -> {
                     mainAccountName = su.username();
-                    send(GSON.toJson(new AutoPearlStasis.PullerStatus(mc.player.getName().getString(), Utils.getWorldName())));
+                    sendPullerStatus();
                     m.info("Set main account to: " + mainAccountName);
                 }
                 default -> LOG.error("Ignoring unexpected message from host: {}", msg);
