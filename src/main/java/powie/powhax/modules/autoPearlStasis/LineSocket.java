@@ -1,5 +1,7 @@
 package powie.powhax.modules.autoPearlStasis;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -19,7 +21,7 @@ public class LineSocket implements AutoCloseable {
         out = new PrintWriter(socket.getOutputStream(), true);
     }
 
-    protected void listen(Consumer<String> onMessage, Runnable onDisconnect) {
+    protected void listen(@NotNull Consumer<String> onMessage, @NotNull Runnable onDisconnect) {
         Thread receiver = new Thread(() -> {
             try {
                 String line;
@@ -30,7 +32,7 @@ public class LineSocket implements AutoCloseable {
                 // Socket closed / connection lost.
             } finally {
                 close();
-                if (onDisconnect != null) onDisconnect.run();
+                onDisconnect.run();
             }
         }, "pearl-stasis-reader");
 

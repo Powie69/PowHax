@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.BlockHitResult;
@@ -23,6 +24,7 @@ import java.util.UUID;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
 import static powie.powhax.Powhax.LOG;
+import static powie.powhax.modules.autoPearlStasis.AutoPearlStasis.*;
 
 public class Puller {
     private final AutoPearlStasis m;
@@ -30,6 +32,7 @@ public class Puller {
     protected final Set<UUID> hasPearlLoaded = new HashSet<>();
 
     protected String mainAccountName;
+    private boolean waitingForMainToAppear;
 
     protected Puller(AutoPearlStasis module) {
         m = module;
@@ -44,8 +47,20 @@ public class Puller {
                 && isWithinTrapdoor(pearl.position())) {
                 hasPearlLoaded.add(pearl.getUUID());
                 m.info("pearl loaded");
-                if (!hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(true)));
+                if (!hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new PearlStatus(true)));
             }
+        }
+
+        m.info("main to appear: " + waitingForMainToAppear);
+        m.info("instance of: " + (event.entity instanceof Player));
+
+        if (waitingForMainToAppear
+            && event.entity instanceof Player player
+            && player.getName().getString().equalsIgnoreCase(mainAccountName)
+            && isWithinTrapdoor(player.position())) {
+            m.info("main player has appeared");
+            waitingForMainToAppear = false;
+            socket.send(GSON.toJson(new PullSuccess()));
         }
     }
 
@@ -54,7 +69,7 @@ public class Puller {
         if (event.entity instanceof ThrownEnderpearl pearl) {
             if (hasPearlLoaded.contains(pearl.getUUID())) {
                 hasPearlLoaded.remove(pearl.getUUID());
-                if (hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new AutoPearlStasis.PearlStatus(false)));
+                if (hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new PearlStatus(false)));
             }
         }
     }
@@ -64,15 +79,15 @@ public class Puller {
 
         // TODO: also send error messages to main
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
-            m.error("selected position is not a trapdoor");
+            printAndSendInfo("selected position is not a trapdoor", InfoType.error);
             return;
         }
         if (!PlayerUtils.isWithinReach(m.trapdoorPos.get())) {
-            m.error("selected position is out of reach");
+            printAndSendInfo("selected position is out of reach", InfoType.error);
             return;
         }
         if (!mc.level.getBlockState(m.trapdoorPos.get()).getValue(TrapDoorBlock.OPEN)) {
-            m.error("trapdoor is closed");
+            printAndSendInfo("trapdoor is closed", InfoType.error);
             return;
         }
 
@@ -94,19 +109,30 @@ public class Puller {
                 false),
             InteractionHand.MAIN_HAND,
             true);
+
+        waitingForMainToAppear = true;
     }
 
-    private boolean isWithinTrapdoor(Vec3 pearlPos) {
-        return Math.floor(pearlPos.x) == m.trapdoorPos.get().getX()
-            && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
+    private boolean isWithinTrapdoor(Vec3 pos) {
+        return Math.floor(pos.x) == m.trapdoorPos.get().getX()
+            && Math.floor(pos.z) == m.trapdoorPos.get().getZ();
     }
 
     protected void sendPullerStatus() {
-        socket.send(GSON.toJson(new AutoPearlStasis.PullerStatus(
+        socket.send(GSON.toJson(new PullerStatus(
             mc.player.getName().getString(),
             Utils.getWorldName(),
             m.trapdoorPos.get()
         )));
+    }
+
+    private void printAndSendInfo(String message, InfoType infoType) {
+        switch (infoType) {
+            case info -> m.info(message);
+            case error -> m.error(message);
+            default -> throw new IllegalArgumentException("Invalid info type: " + infoType);
+        }
+        socket.send(GSON.toJson(new SendInfo(infoType, message)));
     }
 
     protected class WorkerSocket {
@@ -134,7 +160,7 @@ public class Puller {
                     connection = new LineSocket(socket);
                     connection.listen(this::onMessage, () -> m.info("Connection lost."));
 
-                    send(GSON.toJson(new AutoPearlStasis.PearlStatus(!hasPearlLoaded.isEmpty())));
+                    send(GSON.toJson(new PearlStatus(!hasPearlLoaded.isEmpty())));
 
                     while (running && connection.isOpen()) {
                         sleep(200);
@@ -151,20 +177,20 @@ public class Puller {
         }
 
         private void onMessage(String message) {
-            AutoPearlStasis.NetworkMessage msg;
+            NetworkMessage msg;
             try {
-                msg = AutoPearlStasis.NetworkMessage.decode(message);
+                msg = NetworkMessage.decode(message);
             } catch (Exception e) {
                 m.error("Ignoring bad message from host: " + message);
                 return;
             }
 
             switch (msg) {
-                case AutoPearlStasis.PullRequest pr -> {
+                case PullRequest pr -> {
                     m.info("Pull request: " + pr.reason());
                     pullPearl();
                 }
-                case AutoPearlStasis.SetUsername su -> {
+                case SetUsername su -> {
                     mainAccountName = su.username();
                     sendPullerStatus();
                     m.info("Set main account to: " + mainAccountName);

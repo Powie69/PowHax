@@ -18,9 +18,9 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 
 import java.io.IOException;
@@ -38,7 +38,10 @@ public class Main {
     protected int pops;
     protected final HostSocket socket;
 
-    private BlockPos trapdoorPos; //
+    /**
+     * puller should have single source of truth
+     */
+    private BlockPos trapdoorPos;
 
     public Main(AutoPearlStasis module) {
         m = module;
@@ -91,27 +94,18 @@ public class Main {
         }
     }
 
-    /**
-     * If you know a more reliable way of detecting pearl teleportation please let me know
-     *
-     * @author Powie
-     */
-    @EventHandler
-    private void onEntityRemoved(EntityRemovedEvent event) {
-        if (!(event.entity instanceof ThrownEnderpearl pearl) || !m.autoReloadPearl.get()) return;
-
+    private void performAutoReloadPearl() {
         m.info("1");
-
-        if (Math.floor(pearl.getZ()) != trapdoorPos.getZ() || Math.floor(pearl.getX()) != trapdoorPos.getX()
-            || Math.floor(mc.player.getZ()) != trapdoorPos.getZ() || Math.floor(mc.player.getX()) != trapdoorPos.getX())
-            return;
+        BlockState trapdoorState = mc.level.getBlockState(trapdoorPos);
+        m.info(String.valueOf(trapdoorPos));
+        if (!(trapdoorState.getBlock() instanceof TrapDoorBlock)) return;
         m.info("2");
 
-        if (!mc.level.getBlockState(trapdoorPos).getValue(TrapDoorBlock.OPEN)) {
+        if (!trapdoorState.getValue(TrapDoorBlock.OPEN)) {
             BlockUtils.interact(new BlockHitResult(
-                    Utils.vec3(m.trapdoorPos.get()),
+                    Utils.vec3(trapdoorPos),
                     Direction.UP,
-                    m.trapdoorPos.get(),
+                    trapdoorPos,
                     false),
                 InteractionHand.MAIN_HAND,
                 true);
@@ -127,13 +121,13 @@ public class Main {
                 m.warning("Unable to find specified item.");
                 return;
             }
-        m.info("5");
+            m.info("5");
 
             int currentSelectedSlot = mc.player.getInventory().getSelectedSlot();
             if (!result.isMainHand()) InvUtils.quickSwap().fromId(currentSelectedSlot).to(result.slot());
             mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
             InvUtils.swapBack();
-        m.info("6");
+            m.info("6");
         });
     }
 
@@ -226,6 +220,14 @@ public class Main {
                 case AutoPearlStasis.PearlStatus ps -> {
                     hasPearlLoaded = ps.loaded();
                     m.info(hasPearlLoaded ? "pearl loaded." : "pearl destroyed.");
+                }
+                case AutoPearlStasis.PullSuccess ps -> performAutoReloadPearl();
+                case AutoPearlStasis.SendInfo si -> {
+                    switch (si.infoType()) {
+                        case info -> m.info(si.message());
+                        case error -> m.error(si.message());
+                        default -> throw new IllegalArgumentException("Invalid info type: " + si.infoType());
+                    }
                 }
                 default -> LOG.error("Ignoring unexpected message from Puller: {}", msg);
             }

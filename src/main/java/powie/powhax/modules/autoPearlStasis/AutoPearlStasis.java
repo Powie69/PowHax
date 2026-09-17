@@ -235,6 +235,11 @@ public class AutoPearlStasis extends Module {
         Puller
     }
 
+    protected enum InfoType {
+        info,
+        error
+    }
+
     // Communications stuff
     sealed interface NetworkMessage {
         static NetworkMessage decode(String json) {
@@ -246,6 +251,8 @@ public class AutoPearlStasis extends Module {
                 case SetUsername.TYPE -> GSON.fromJson(obj, SetUsername.class);
                 case PearlStatus.TYPE -> GSON.fromJson(obj, PearlStatus.class);
                 case PullerStatus.TYPE -> GSON.fromJson(obj, PullerStatus.class);
+                case PullSuccess.TYPE -> GSON.fromJson(obj, PullSuccess.class);
+                case SendInfo.TYPE -> GSON.fromJson(obj, SendInfo.class);
                 default -> throw new IllegalArgumentException("Unknown message type '" + type + "' in: " + json);
             };
         }
@@ -283,6 +290,22 @@ public class AutoPearlStasis extends Module {
 
         PullerStatus(String pullerUsername, String server, BlockPos trapdoorPos) {
             this(TYPE, pullerUsername, server, trapdoorPos);
+        }
+    }
+
+    record PullSuccess(String type) implements NetworkMessage {
+        static final String TYPE = "pullSuccess";
+
+        PullSuccess() {
+            this(TYPE);
+        }
+    }
+
+    record SendInfo(String type, InfoType infoType, String message) implements NetworkMessage {
+        static final String TYPE = "sendInfo";
+
+        SendInfo(InfoType infoType, String message) {
+            this(TYPE, infoType, message);
         }
     }
 }
