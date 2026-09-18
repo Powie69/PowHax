@@ -21,8 +21,7 @@ import static powie.powhax.Powhax.GSON;
 public class AutoPearlStasis extends Module {
     private final SettingGroup sgGeneral = settings.getDefaultGroup();
     private final SettingGroup sgTriggers = settings.createGroup("Triggers");
-    private final SettingGroup sgHost = settings.createGroup("Host (Main)");
-    private final SettingGroup sgPuller = settings.createGroup("Worker (Puller)");
+    private final SettingGroup sgPuller = settings.createGroup("Puller");
 
     // General
     protected final Setting<Mode> mode = sgGeneral.add(new EnumSetting.Builder<Mode>()
@@ -93,15 +92,6 @@ public class AutoPearlStasis extends Module {
     protected final Setting<Set<EntityType<?>>> entities = sgTriggers.add(new EntityTypeListSetting.Builder()
         .name("entities")
         .description("Disconnects when a specified entity is present within a specified range.")
-        .visible(() -> mode.get() == Mode.Main)
-        .build()
-    );
-
-    // Main
-    protected final Setting<Boolean> autoReloadPearl = sgHost.add(new BoolSetting.Builder()
-        .name("auto-reload-pearl")
-        .description("Automatically reloads your pearl upon activation")
-        .defaultValue(true)
         .visible(() -> mode.get() == Mode.Main)
         .build()
     );
@@ -251,7 +241,6 @@ public class AutoPearlStasis extends Module {
                 case SetUsername.TYPE -> GSON.fromJson(obj, SetUsername.class);
                 case PearlStatus.TYPE -> GSON.fromJson(obj, PearlStatus.class);
                 case PullerStatus.TYPE -> GSON.fromJson(obj, PullerStatus.class);
-                case PullSuccess.TYPE -> GSON.fromJson(obj, PullSuccess.class);
                 case SendInfo.TYPE -> GSON.fromJson(obj, SendInfo.class);
                 default -> throw new IllegalArgumentException("Unknown message type '" + type + "' in: " + json);
             };
@@ -284,20 +273,11 @@ public class AutoPearlStasis extends Module {
         }
     }
 
-    record PullerStatus(String type, String pullerUsername, String server,
-                        BlockPos trapdoorPos) implements NetworkMessage {
+    record PullerStatus(String type, String pullerUsername, String server) implements NetworkMessage {
         static final String TYPE = "pullerStatus";
 
-        PullerStatus(String pullerUsername, String server, BlockPos trapdoorPos) {
-            this(TYPE, pullerUsername, server, trapdoorPos);
-        }
-    }
-
-    record PullSuccess(String type) implements NetworkMessage {
-        static final String TYPE = "pullSuccess";
-
-        PullSuccess() {
-            this(TYPE);
+        PullerStatus(String pullerUsername, String server) {
+            this(TYPE, pullerUsername, server);
         }
     }
 

@@ -32,7 +32,6 @@ public class Puller {
     protected final Set<UUID> hasPearlLoaded = new HashSet<>();
 
     protected String mainAccountName;
-    private boolean waitingForMainToAppear;
 
     protected Puller(AutoPearlStasis module) {
         m = module;
@@ -50,18 +49,6 @@ public class Puller {
                 if (!hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new PearlStatus(true)));
             }
         }
-
-        m.info("main to appear: " + waitingForMainToAppear);
-        m.info("instance of: " + (event.entity instanceof Player));
-
-        if (waitingForMainToAppear
-            && event.entity instanceof Player player
-            && player.getName().getString().equalsIgnoreCase(mainAccountName)
-            && isWithinTrapdoor(player.position())) {
-            m.info("main player has appeared");
-            waitingForMainToAppear = false;
-            socket.send(GSON.toJson(new PullSuccess()));
-        }
     }
 
     @EventHandler
@@ -77,7 +64,6 @@ public class Puller {
     protected void pullPearl() {
         if (hasPearlLoaded.isEmpty()) return;
 
-        // TODO: also send error messages to main
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             printAndSendInfo("selected position is not a trapdoor", InfoType.error);
             return;
@@ -109,20 +95,17 @@ public class Puller {
                 false),
             InteractionHand.MAIN_HAND,
             true);
-
-        waitingForMainToAppear = true;
     }
 
-    private boolean isWithinTrapdoor(Vec3 pos) {
-        return Math.floor(pos.x) == m.trapdoorPos.get().getX()
-            && Math.floor(pos.z) == m.trapdoorPos.get().getZ();
+    private boolean isWithinTrapdoor(Vec3 pearlPos) {
+        return Math.floor(pearlPos.x) == m.trapdoorPos.get().getX()
+            && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
     }
 
     protected void sendPullerStatus() {
         socket.send(GSON.toJson(new PullerStatus(
             mc.player.getName().getString(),
-            Utils.getWorldName(),
-            m.trapdoorPos.get()
+            Utils.getWorldName()
         )));
     }
 

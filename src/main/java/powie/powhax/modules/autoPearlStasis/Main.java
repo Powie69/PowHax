@@ -1,27 +1,15 @@
 package powie.powhax.modules.autoPearlStasis;
 
-import meteordevelopment.meteorclient.events.entity.EntityRemovedEvent;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.friends.Friends;
 import meteordevelopment.meteorclient.utils.Utils;
-import meteordevelopment.meteorclient.utils.player.FindItemResult;
-import meteordevelopment.meteorclient.utils.player.InvUtils;
 import meteordevelopment.meteorclient.utils.player.PlayerUtils;
-import meteordevelopment.meteorclient.utils.player.Rotations;
-import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.level.block.TrapDoorBlock;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -37,11 +25,6 @@ public class Main {
     protected boolean hasPearlLoaded;
     protected int pops;
     protected final HostSocket socket;
-
-    /**
-     * puller should have single source of truth
-     */
-    private BlockPos trapdoorPos;
 
     public Main(AutoPearlStasis module) {
         m = module;
@@ -94,43 +77,6 @@ public class Main {
         }
     }
 
-    private void performAutoReloadPearl() {
-        m.info("1");
-        BlockState trapdoorState = mc.level.getBlockState(trapdoorPos);
-        m.info(String.valueOf(trapdoorPos));
-        if (!(trapdoorState.getBlock() instanceof TrapDoorBlock)) return;
-        m.info("2");
-
-        if (!trapdoorState.getValue(TrapDoorBlock.OPEN)) {
-            BlockUtils.interact(new BlockHitResult(
-                    Utils.vec3(trapdoorPos),
-                    Direction.UP,
-                    trapdoorPos,
-                    false),
-                InteractionHand.MAIN_HAND,
-                true);
-        }
-        m.info("3");
-
-        PlayerUtils.centerPlayer();
-        m.info("4");
-
-        Rotations.rotate(mc.player.getYRot(), 90, () -> {
-            FindItemResult result = InvUtils.find(Items.ENDER_PEARL);
-            if (!result.found() || !result.isHotbar()) {
-                m.warning("Unable to find specified item.");
-                return;
-            }
-            m.info("5");
-
-            int currentSelectedSlot = mc.player.getInventory().getSelectedSlot();
-            if (!result.isMainHand()) InvUtils.quickSwap().fromId(currentSelectedSlot).to(result.slot());
-            mc.gameMode.useItem(mc.player, InteractionHand.MAIN_HAND);
-            InvUtils.swapBack();
-            m.info("6");
-        });
-    }
-
     protected void requestPull(String reason) {
         if (mc.player.isDeadOrDying()) return;
         if (!socket.connection.isOpen()) {
@@ -147,8 +93,6 @@ public class Main {
 
     /**
      * Puller will send back {@link AutoPearlStasis#PullerStatus}
-     *
-     * @return true if no connection
      */
     protected void testConnection() {
         if (socket.connection == null) return;
@@ -215,13 +159,11 @@ public class Main {
                     if (!ps.server().equalsIgnoreCase(Utils.getWorldName())) {
                         m.error("Puller is connected but they're not on the same server");
                     }
-                    trapdoorPos = ps.trapdoorPos();
                 }
                 case AutoPearlStasis.PearlStatus ps -> {
                     hasPearlLoaded = ps.loaded();
                     m.info(hasPearlLoaded ? "pearl loaded." : "pearl destroyed.");
                 }
-                case AutoPearlStasis.PullSuccess ps -> performAutoReloadPearl();
                 case AutoPearlStasis.SendInfo si -> {
                     switch (si.infoType()) {
                         case info -> m.info(si.message());
