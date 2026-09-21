@@ -4,15 +4,18 @@ import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
 import meteordevelopment.meteorclient.settings.*;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
+import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.EntityType;
 import powie.powhax.Powhax;
+import powie.powhax.events.AutoPearlStasisUpdateInfoTableEvent;
 
 import java.util.Set;
 
@@ -45,7 +48,6 @@ public class AutoPearlStasis extends Module {
     );
 
     // Triggers
-
     private final Setting<Keybind> triggerBind = sgTriggers.add(new KeybindSetting.Builder()
         .name("trigger-bind")
         .description("The keybind to manually trigger pearl stasis")
@@ -117,6 +119,9 @@ public class AutoPearlStasis extends Module {
     private Puller puller;
 
     private String currentActiveMode;
+    private GuiTheme theme;
+    private WTable table;
+    private String connectionUsername, connectionAddress, isPearlLoaded;
 
     /**
      * <p>TODO: auto pearl reload</p>
@@ -133,12 +138,16 @@ public class AutoPearlStasis extends Module {
     public WWidget getWidget(GuiTheme theme) {
         WVerticalList l = theme.verticalList();
 
+        WTable table = new WTable();
+        this.table = table;
+        this.theme = theme;
+        handleTestConnection();
+
+        l.add(table);
+
+        l.add(theme.horizontalSeparator()).expandX();
         WButton testConnectionButton = l.add(theme.button("test Connection")).expandX().widget();
-        testConnectionButton.action = () -> {
-            if (mode.get() == Mode.Main) {
-                main.testConnection();
-            }
-        };
+        testConnectionButton.action = this::handleTestConnection;
         return l;
     }
 
@@ -166,10 +175,19 @@ public class AutoPearlStasis extends Module {
     public String getInfoString() {
         if (mode.get() == Mode.Main) {
             if (main == null) return "Main | Not Connected";
-            return "Main | Pearl loaded: " + (main.hasPearlLoaded ? "Yes" : "No") + " | Popped: " + main.pops;
+            return "Main | Pearl loaded: " + isPearlLoaded + " | Popped: " + main.pops;
         } else {
-            return "Puller | " + (puller != null ? puller.mainAccountName : "");
+            return "Puller | " + connectionUsername;
         }
+    }
+
+    @EventHandler
+    private void onAutoPearlStasisUpdateInfoTable(AutoPearlStasisUpdateInfoTableEvent event) {
+        if (event.username != null) connectionUsername = event.username;
+        if (event.connection != null) connectionAddress = event.connection;
+        if (event.pearlStatus != null) isPearlLoaded = event.pearlStatus ? "Yes" : "No";
+
+        fillInfoTable(theme, table);
     }
 
     private void startPullerMode() {
@@ -180,7 +198,6 @@ public class AutoPearlStasis extends Module {
     private void startMainMode() {
         main = new Main(this);
         MeteorClient.EVENT_BUS.subscribe(main);
-        main.testConnection();
     }
 
     private void stopPullerMode() {
@@ -220,6 +237,21 @@ public class AutoPearlStasis extends Module {
         if (main != null) main.requestPull("Pressed bind");
     }
 
+    private void handleTestConnection() {
+        if (mode.get() == Mode.Main && main != null) main.testConnection();
+        else if (mode.get() == Mode.Puller && puller != null) puller.testConnection();
+    }
+
+    private void fillInfoTable(GuiTheme theme, WTable table) {
+        table.clear();
+        String role = mode.get() == Mode.Main ? "Puller's" : "Main's";
+        table.add(theme.label(role + " username: " + connectionUsername)).expandCellX();
+        table.row();
+        table.add(theme.label(role + " connection: " + connectionAddress)).expandCellX();
+        table.row();
+        table.add(theme.label("Is pearl loaded: " + isPearlLoaded));
+    }
+
     protected enum Mode {
         Main,
         Puller
@@ -231,7 +263,7 @@ public class AutoPearlStasis extends Module {
     }
 
     // Communications stuff
-    sealed interface NetworkMessage {
+    protected sealed interface NetworkMessage {
         static NetworkMessage decode(String json) {
             JsonObject obj = GSON.fromJson(json, JsonObject.class);
             String type = obj.has("type") ? obj.get("type").getAsString() : "";

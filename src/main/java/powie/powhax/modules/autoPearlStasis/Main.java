@@ -1,5 +1,6 @@
 package powie.powhax.modules.autoPearlStasis;
 
+import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.friends.Friends;
@@ -10,10 +11,11 @@ import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.player.Player;
+import powie.powhax.events.AutoPearlStasisUpdateInfoTableEvent;
+import powie.powhax.modules.autoPearlStasis.AutoPearlStasis.NetworkMessage;
 
 import java.io.IOException;
 import java.net.ServerSocket;
-import java.net.Socket;
 
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
@@ -28,7 +30,8 @@ public class Main {
 
     public Main(AutoPearlStasis module) {
         m = module;
-        socket = new HostSocket(m.serverPort.get());
+        socket = new HostSocket(m.serverPort.get(), module);
+        testConnection();
     }
 
     @EventHandler
@@ -96,19 +99,16 @@ public class Main {
      */
     protected void testConnection() {
         if (socket.connection == null) return;
-        m.info(socket.connection.getRemoteAddress());
         socket.send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
     }
 
-    protected class HostSocket {
+    protected class HostSocket extends BaseSocket {
         private final int port;
-
         private ServerSocket serverSocket;
-        private volatile LineSocket connection;
-        private volatile boolean running = true;
 
-        private HostSocket(int port) {
+        private HostSocket(int port, AutoPearlStasis module) {
             this.port = port;
+            super(module);
 
             Thread acceptThread = new Thread(this::acceptLoop, "pearl-stasis-host-accept");
             acceptThread.setDaemon(true);
@@ -122,9 +122,8 @@ public class Main {
                 while (running) {
                     m.info("Waiting for Puller...");
 
-                    Socket socket = serverSocket.accept();
-                    m.info("Puller connected: " + socket.getRemoteSocketAddress());
-                    connection = new LineSocket(socket);
+                    connection = new LineSocket(serverSocket.accept());
+                    m.info("Puller connected: " + connection.getRemoteAddress());
                     connection.listen(this::onMessage, () -> m.info("Puller disconnected."));
 
                     send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
@@ -145,24 +144,21 @@ public class Main {
             }
         }
 
-        private void onMessage(String message) {
-            AutoPearlStasis.NetworkMessage msg;
-            try {
-                msg = AutoPearlStasis.NetworkMessage.decode(message);
-            } catch (Exception e) {
-                m.error("Ignoring bad message from Puller: " + message);
-                return;
-            }
-
+        @Override
+        protected void handleMessage(NetworkMessage msg) {
             switch (msg) {
                 case AutoPearlStasis.PullerStatus ps -> {
                     if (!ps.server().equalsIgnoreCase(Utils.getWorldName())) {
                         m.error("Puller is connected but they're not on the same server");
                     }
+                    MeteorClient.EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
+                        ps.pullerUsername(),
+                        socket.connection.getRemoteAddress())); // temporarily
                 }
                 case AutoPearlStasis.PearlStatus ps -> {
                     hasPearlLoaded = ps.loaded();
                     m.info(hasPearlLoaded ? "pearl loaded." : "pearl destroyed.");
+                    MeteorClient.EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(hasPearlLoaded));
                 }
                 case AutoPearlStasis.SendInfo si -> {
                     switch (si.infoType()) {
@@ -173,11 +169,6 @@ public class Main {
                 }
                 default -> LOG.error("Ignoring unexpected message from Puller: {}", msg);
             }
-
-        }
-
-        protected void send(String message) {
-            if (connection != null) connection.send(message);
         }
 
         protected void stop() {

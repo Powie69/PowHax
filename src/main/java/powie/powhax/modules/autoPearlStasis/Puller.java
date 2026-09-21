@@ -9,11 +9,11 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import powie.powhax.events.AutoPearlStasisUpdateInfoTableEvent;
 
 import java.io.IOException;
 import java.net.Socket;
@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import static meteordevelopment.meteorclient.MeteorClient.EVENT_BUS;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
 import static powie.powhax.Powhax.LOG;
@@ -35,7 +36,7 @@ public class Puller {
 
     protected Puller(AutoPearlStasis module) {
         m = module;
-        socket = new WorkerSocket(m.serverPort.get());
+        socket = new WorkerSocket(m.serverPort.get(), module);
     }
 
     @EventHandler
@@ -46,7 +47,11 @@ public class Puller {
                 && isWithinTrapdoor(pearl.position())) {
                 hasPearlLoaded.add(pearl.getUUID());
                 m.info("pearl loaded");
-                if (!hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new PearlStatus(true)));
+                if (!hasPearlLoaded.isEmpty()) {
+                    socket.send(GSON.toJson(new PearlStatus(true)));
+                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(true));
+                }
+                ;
             }
         }
     }
@@ -56,7 +61,10 @@ public class Puller {
         if (event.entity instanceof ThrownEnderpearl pearl) {
             if (hasPearlLoaded.contains(pearl.getUUID())) {
                 hasPearlLoaded.remove(pearl.getUUID());
-                if (hasPearlLoaded.isEmpty()) socket.send(GSON.toJson(new PearlStatus(false)));
+                if (hasPearlLoaded.isEmpty()) {
+                    socket.send(GSON.toJson(new PearlStatus(false)));
+                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(false));
+                }
             }
         }
     }
@@ -102,6 +110,11 @@ public class Puller {
             && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
     }
 
+    protected void testConnection() {
+        if (socket.connection == null) return;
+        m.info(socket.connection.getRemoteAddress());
+    }
+
     protected void sendPullerStatus() {
         socket.send(GSON.toJson(new PullerStatus(
             mc.player.getName().getString(),
@@ -118,15 +131,16 @@ public class Puller {
         socket.send(GSON.toJson(new SendInfo(infoType, message)));
     }
 
-    protected class WorkerSocket {
-        private static final long RECONNECT_DELAY_MS = 3000;
+    protected class WorkerSocket extends BaseSocket {
+        private static final int RECONNECT_DELAY_MS = 3000;
 
         private final int port;
 
-        private volatile LineSocket connection;
         private volatile boolean running = true;
+        protected volatile LineSocket connection;
 
-        private WorkerSocket(int port) {
+        private WorkerSocket(int port, AutoPearlStasis module) {
+            super(module);
             this.port = port;
 
             Thread connectThread = new Thread(this::connectLoop, "pearl-stasis-worker-connect");
@@ -137,10 +151,8 @@ public class Puller {
         private void connectLoop() {
             while (running) {
                 try {
-                    Socket socket = new Socket("localhost", port);
-                    m.info("Connected to host.");
-
-                    connection = new LineSocket(socket);
+                    connection = new LineSocket(new Socket("localhost", port));
+                    m.info("Connected to main.");
                     connection.listen(this::onMessage, () -> m.info("Connection lost."));
 
                     send(GSON.toJson(new PearlStatus(!hasPearlLoaded.isEmpty())));
@@ -159,15 +171,8 @@ public class Puller {
             }
         }
 
-        private void onMessage(String message) {
-            NetworkMessage msg;
-            try {
-                msg = NetworkMessage.decode(message);
-            } catch (Exception e) {
-                m.error("Ignoring bad message from host: " + message);
-                return;
-            }
-
+        @Override
+        protected void handleMessage(NetworkMessage msg) {
             switch (msg) {
                 case PullRequest pr -> {
                     m.info("Pull request: " + pr.reason());
@@ -176,14 +181,13 @@ public class Puller {
                 case SetUsername su -> {
                     mainAccountName = su.username();
                     sendPullerStatus();
+                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
+                        su.username(),
+                        socket.connection.getRemoteAddress()));
                     m.info("Set main account to: " + mainAccountName);
                 }
                 default -> LOG.error("Ignoring unexpected message from host: {}", msg);
             }
-        }
-
-        protected void send(String message) {
-            if (connection != null) connection.send(message);
         }
 
         protected void stop() {
