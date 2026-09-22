@@ -16,7 +16,11 @@ public class AutoPearlStasisUpdateInfoTableEvent {
         this(username, connection, null);
     }
 
-    public AutoPearlStasisUpdateInfoTableEvent(Boolean pearlStatus) {
+    public AutoPearlStasisUpdateInfoTableEvent(boolean pearlStatus) {
         this(null, null, pearlStatus);
+    }
+
+    public AutoPearlStasisUpdateInfoTableEvent() {
+        this(null, null, null);
     }
 }

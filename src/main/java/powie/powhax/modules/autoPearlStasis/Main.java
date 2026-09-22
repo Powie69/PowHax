@@ -1,6 +1,5 @@
 package powie.powhax.modules.autoPearlStasis;
 
-import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.events.packets.PacketEvent;
 import meteordevelopment.meteorclient.events.world.TickEvent;
 import meteordevelopment.meteorclient.systems.friends.Friends;
@@ -17,6 +16,7 @@ import powie.powhax.modules.autoPearlStasis.AutoPearlStasis.NetworkMessage;
 import java.io.IOException;
 import java.net.ServerSocket;
 
+import static meteordevelopment.meteorclient.MeteorClient.EVENT_BUS;
 import static meteordevelopment.meteorclient.MeteorClient.mc;
 import static powie.powhax.Powhax.GSON;
 import static powie.powhax.Powhax.LOG;
@@ -151,14 +151,14 @@ public class Main {
                     if (!ps.server().equalsIgnoreCase(Utils.getWorldName())) {
                         m.error("Puller is connected but they're not on the same server");
                     }
-                    MeteorClient.EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
+                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
                         ps.pullerUsername(),
                         socket.connection.getRemoteAddress())); // temporarily
                 }
                 case AutoPearlStasis.PearlStatus ps -> {
                     hasPearlLoaded = ps.loaded();
-                    m.info(hasPearlLoaded ? "pearl loaded." : "pearl destroyed.");
-                    MeteorClient.EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(hasPearlLoaded));
+                    m.info(ps.loaded() ? "pearl loaded." : "pearl destroyed.");
+                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(ps.loaded()));
                 }
                 case AutoPearlStasis.SendInfo si -> {
                     switch (si.infoType()) {

@@ -41,31 +41,28 @@ public class Puller {
 
     @EventHandler
     private void onEntityAdded(EntityAddedEvent event) {
-        if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (pearl.getOwner() != null
-                && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
-                && isWithinTrapdoor(pearl.position())) {
-                hasPearlLoaded.add(pearl.getUUID());
-                m.info("pearl loaded");
-                if (!hasPearlLoaded.isEmpty()) {
-                    socket.send(GSON.toJson(new PearlStatus(true)));
-                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(true));
-                }
-                ;
+        if (!(event.entity instanceof ThrownEnderpearl pearl)) return;
+
+        if (pearl.getOwner() != null
+            && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
+            && isWithinTrapdoor(pearl.position())) {
+            hasPearlLoaded.add(pearl.getUUID());
+            m.info("pearl loaded");
+            if (!hasPearlLoaded.isEmpty()) {
+                socket.send(GSON.toJson(new PearlStatus(true)));
+                EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(true));
             }
         }
     }
 
     @EventHandler
     private void onEntityRemoved(EntityRemovedEvent event) {
-        if (event.entity instanceof ThrownEnderpearl pearl) {
-            if (hasPearlLoaded.contains(pearl.getUUID())) {
-                hasPearlLoaded.remove(pearl.getUUID());
-                if (hasPearlLoaded.isEmpty()) {
-                    socket.send(GSON.toJson(new PearlStatus(false)));
-                    EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(false));
-                }
-            }
+        if (!(event.entity instanceof ThrownEnderpearl pearl)) return;
+
+        if (!hasPearlLoaded.remove(pearl.getUUID())) return;
+        if (hasPearlLoaded.isEmpty()) {
+            socket.send(GSON.toJson(new PearlStatus(false)));
+            EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(false));
         }
     }
 
@@ -120,6 +117,7 @@ public class Puller {
             mc.player.getName().getString(),
             Utils.getWorldName()
         )));
+        EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent()); // goofy way to invoke AutoPearlStasis#fillInfoTable
     }
 
     private void printAndSendInfo(String message, InfoType infoType) {
@@ -135,9 +133,7 @@ public class Puller {
         private static final int RECONNECT_DELAY_MS = 3000;
 
         private final int port;
-
         private volatile boolean running = true;
-        protected volatile LineSocket connection;
 
         private WorkerSocket(int port, AutoPearlStasis module) {
             super(module);
@@ -183,7 +179,7 @@ public class Puller {
                     sendPullerStatus();
                     EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
                         su.username(),
-                        socket.connection.getRemoteAddress()));
+                        connection.getRemoteAddress()));
                     m.info("Set main account to: " + mainAccountName);
                 }
                 default -> LOG.error("Ignoring unexpected message from host: {}", msg);

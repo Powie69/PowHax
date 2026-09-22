@@ -141,7 +141,7 @@ public class AutoPearlStasis extends Module {
         WTable table = new WTable();
         this.table = table;
         this.theme = theme;
-        handleTestConnection();
+        fillInfoTable(theme, table);
 
         l.add(table);
 
@@ -243,6 +243,7 @@ public class AutoPearlStasis extends Module {
     }
 
     private void fillInfoTable(GuiTheme theme, WTable table) {
+        if (theme == null || table == null) return;
         table.clear();
         String role = mode.get() == Mode.Main ? "Puller's" : "Main's";
         table.add(theme.label(role + " username: " + connectionUsername)).expandCellX();
