@@ -33,6 +33,7 @@ public class Puller {
     protected final Set<UUID> hasPearlLoaded = new HashSet<>();
 
     protected String mainAccountName;
+    private long lastPullTime;
 
     protected Puller(AutoPearlStasis module) {
         m = module;
@@ -69,6 +70,9 @@ public class Puller {
     protected void pullPearl() {
         if (hasPearlLoaded.isEmpty()) return;
 
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastPullTime < 100) return; // 100ms randomly chosen - no particular reason
+        lastPullTime = currentTime;
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             printAndSendInfo("selected position is not a trapdoor", InfoType.error);
             return;
@@ -133,7 +137,6 @@ public class Puller {
         private static final int RECONNECT_DELAY_MS = 3000;
 
         private final int port;
-        private volatile boolean running = true;
 
         private WorkerSocket(int port, AutoPearlStasis module) {
             super(module);
@@ -149,7 +152,7 @@ public class Puller {
                 try {
                     connection = new LineSocket(new Socket("localhost", port));
                     m.info("Connected to main.");
-                    connection.listen(this::onMessage, () -> m.info("Connection lost."));
+                    connection.listen(this::onMessage, this::onDisconnect);
 
                     send(GSON.toJson(new PearlStatus(!hasPearlLoaded.isEmpty())));
 
@@ -172,7 +175,7 @@ public class Puller {
             switch (msg) {
                 case PullRequest pr -> {
                     m.info("Pull request: " + pr.reason());
-                    pullPearl();
+                    mc.execute(Puller.this::pullPearl); // screw Jelly squid
                 }
                 case SetUsername su -> {
                     mainAccountName = su.username();
@@ -184,12 +187,6 @@ public class Puller {
                 }
                 default -> LOG.error("Ignoring unexpected message from host: {}", msg);
             }
-        }
-
-        protected void stop() {
-            running = false;
-            if (connection != null) connection.close();
-            m.info("Worker stopped.");
         }
 
         private void sleep(long ms) {

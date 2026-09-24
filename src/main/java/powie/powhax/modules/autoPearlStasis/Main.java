@@ -95,7 +95,7 @@ public class Main {
     }
 
     /**
-     * Puller will send back {@link AutoPearlStasis#PullerStatus}
+     * Puller will send back {@link AutoPearlStasis.PullerStatus}
      */
     protected void testConnection() {
         if (socket.connection == null) return;
@@ -124,7 +124,7 @@ public class Main {
 
                     connection = new LineSocket(serverSocket.accept());
                     m.info("Puller connected: " + connection.getRemoteAddress());
-                    connection.listen(this::onMessage, () -> m.info("Puller disconnected."));
+                    connection.listen(this::onMessage, this::onDisconnect);
 
                     send(GSON.toJson(new AutoPearlStasis.SetUsername(mc.player.getName().getString())));
 
@@ -171,17 +171,14 @@ public class Main {
             }
         }
 
+        @Override
         protected void stop() {
-            running = false;
-
-            if (connection != null) connection.close();
+            super.stop();
 
             try {
                 if (serverSocket != null) serverSocket.close();
             } catch (IOException ignored) {
             }
-
-            m.info("Host stopped.");
         }
     }
 

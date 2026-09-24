@@ -1,7 +1,6 @@
 package powie.powhax.modules.autoPearlStasis;
 
 import com.google.gson.JsonObject;
-import meteordevelopment.meteorclient.MeteorClient;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
@@ -19,6 +18,7 @@ import powie.powhax.events.AutoPearlStasisUpdateInfoTableEvent;
 
 import java.util.Set;
 
+import static meteordevelopment.meteorclient.MeteorClient.EVENT_BUS;
 import static powie.powhax.Powhax.GSON;
 
 public class AutoPearlStasis extends Module {
@@ -121,11 +121,13 @@ public class AutoPearlStasis extends Module {
     private String currentActiveMode;
     private GuiTheme theme;
     private WTable table;
-    private String connectionUsername, connectionAddress, isPearlLoaded;
+    private String connectionUsername = "", connectionAddress = "", isPearlLoaded = "No";
 
     /**
      * <p>TODO: auto pearl reload</p>
      * <p>TODO: better ux for folia servers</p>
+     *
+     * <p>Sometimes throws ConcurrentModificationException. cant replicate consistently</p>
      */
     public AutoPearlStasis() {
         super(Powhax.CATEGORY,
@@ -134,23 +136,7 @@ public class AutoPearlStasis extends Module {
             "Auto pearl puller");
     }
 
-    @Override
-    public WWidget getWidget(GuiTheme theme) {
-        WVerticalList l = theme.verticalList();
-
-        WTable table = new WTable();
-        this.table = table;
-        this.theme = theme;
-        fillInfoTable(theme, table);
-
-        l.add(table);
-
-        l.add(theme.horizontalSeparator()).expandX();
-        WButton testConnectionButton = l.add(theme.button("test Connection")).expandX().widget();
-        testConnectionButton.action = this::handleTestConnection;
-        return l;
-    }
-
+    // Activation/Deactivation
     @Override
     public void onActivate() {
         if (mode.get() == Mode.Main) {
@@ -169,6 +155,66 @@ public class AutoPearlStasis extends Module {
             stopPullerMode();
         }
         currentActiveMode = null;
+        connectionUsername = "";
+        connectionAddress = "";
+        isPearlLoaded = "No";
+        fillInfoTable(theme, table);
+    }
+
+    private void startPullerMode() {
+        puller = new Puller(this);
+        EVENT_BUS.subscribe(puller);
+    }
+
+    private void startMainMode() {
+        main = new Main(this);
+        EVENT_BUS.subscribe(main);
+    }
+
+    private void stopPullerMode() {
+        if (puller == null) return;
+        EVENT_BUS.unsubscribe(puller);
+        puller.socket.stop();
+        puller = null;
+    }
+
+    private void stopMainMode() {
+        if (main == null) return;
+        EVENT_BUS.unsubscribe(main);
+        main.socket.stop();
+        main = null;
+    }
+
+    private void handleModeSwitchingWhileActive(Mode v) {
+        if (!isActive()) return;
+        if (currentActiveMode == null || currentActiveMode.equals(v.name())) return;
+
+        if (v == Mode.Main) {
+            stopPullerMode();
+            startMainMode();
+        } else {
+            stopMainMode();
+            startPullerMode();
+        }
+        currentActiveMode = v.name();
+    }
+
+    // GUI
+    @Override
+    public WWidget getWidget(GuiTheme theme) {
+        WVerticalList l = theme.verticalList();
+        WTable table = theme.table();
+
+        this.table = table;
+        this.theme = theme;
+        fillInfoTable(theme, table);
+
+        l.add(table);
+
+        l.add(theme.horizontalSeparator()).expandX();
+        WButton testConnectionButton = l.add(theme.button("Test Connection")).expandX().widget();
+        testConnectionButton.action = this::handleTestConnection;
+        return l;
     }
 
     @Override
@@ -190,51 +236,15 @@ public class AutoPearlStasis extends Module {
         fillInfoTable(theme, table);
     }
 
-    private void startPullerMode() {
-        puller = new Puller(this);
-        MeteorClient.EVENT_BUS.subscribe(puller);
-    }
-
-    private void startMainMode() {
-        main = new Main(this);
-        MeteorClient.EVENT_BUS.subscribe(main);
-    }
-
-    private void stopPullerMode() {
-        if (puller == null) return;
-        MeteorClient.EVENT_BUS.unsubscribe(puller);
-        puller.socket.stop();
-        puller = null;
-    }
-
-    private void stopMainMode() {
-        if (main == null) return;
-        MeteorClient.EVENT_BUS.unsubscribe(main);
-        main.socket.stop();
-        main = null;
-    }
-
-    private void handleModeSwitchingWhileActive(Mode v) {
-        if (!isActive()) return;
-        if (currentActiveMode == null || currentActiveMode.equals(v.name())) return;
-
-        if (v == Mode.Main) {
-            stopPullerMode();
-            startMainMode();
-        } else {
-            stopMainMode();
-            startPullerMode();
-        }
-        currentActiveMode = v.name();
-    }
-
-    private void handleTrapdoorBlockPosChange(BlockPos blockPos) {
-        if (mode.get() != Mode.Puller || puller == null || !Utils.canUpdate()) return;
-        puller.sendPullerStatus();
-    }
-
-    private void handleTriggerBind() {
-        if (main != null) main.requestPull("Pressed bind");
+    private void fillInfoTable(GuiTheme theme, WTable table) {
+        if (theme == null || table == null) return;
+        table.clear();
+        String role = mode.get() == Mode.Main ? "Puller's" : "Main's";
+        table.add(theme.label(role + " username: " + connectionUsername));
+        table.row();
+        table.add(theme.label(role + " connection: " + connectionAddress));
+        table.row();
+        table.add(theme.label("Is pearl loaded: " + isPearlLoaded));
     }
 
     private void handleTestConnection() {
@@ -242,15 +252,14 @@ public class AutoPearlStasis extends Module {
         else if (mode.get() == Mode.Puller && puller != null) puller.testConnection();
     }
 
-    private void fillInfoTable(GuiTheme theme, WTable table) {
-        if (theme == null || table == null) return;
-        table.clear();
-        String role = mode.get() == Mode.Main ? "Puller's" : "Main's";
-        table.add(theme.label(role + " username: " + connectionUsername)).expandCellX();
-        table.row();
-        table.add(theme.label(role + " connection: " + connectionAddress)).expandCellX();
-        table.row();
-        table.add(theme.label("Is pearl loaded: " + isPearlLoaded));
+    //
+    private void handleTrapdoorBlockPosChange(BlockPos blockPos) {
+        if (mode.get() != Mode.Puller || puller == null || !Utils.canUpdate()) return;
+        puller.sendPullerStatus();
+    }
+
+    private void handleTriggerBind() {
+        if (main != null) main.requestPull("Pressed bind");
     }
 
     protected enum Mode {
