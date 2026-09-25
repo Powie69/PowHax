@@ -47,6 +47,15 @@ public class AutoPearlStasis extends Module {
         .build()
     );
 
+    protected final Setting<Integer> requestCooldown = sgGeneral.add(new IntSetting.Builder()
+        .name("request-cooldown")
+        .description("Minimum time between pull requests in milliseconds to prevent spam.")
+        .defaultValue(100)
+        .min(0)
+        .sliderMax(500)
+        .build()
+    );
+
     // Triggers
     private final Setting<Keybind> triggerBind = sgTriggers.add(new KeybindSetting.Builder()
         .name("trigger-bind")
@@ -118,7 +127,7 @@ public class AutoPearlStasis extends Module {
     private Main main;
     private Puller puller;
 
-    private String currentActiveMode;
+    private Mode currentActiveMode;
     private GuiTheme theme;
     private WTable table;
     private String connectionUsername = "", connectionAddress = "", isPearlLoaded = "No";
@@ -144,7 +153,7 @@ public class AutoPearlStasis extends Module {
         } else {
             startPullerMode();
         }
-        currentActiveMode = mode.get().name();
+        currentActiveMode = mode.get();
     }
 
     @Override
@@ -187,7 +196,7 @@ public class AutoPearlStasis extends Module {
 
     private void handleModeSwitchingWhileActive(Mode v) {
         if (!isActive()) return;
-        if (currentActiveMode == null || currentActiveMode.equals(v.name())) return;
+        if (currentActiveMode == null || currentActiveMode == (v)) return;
 
         if (v == Mode.Main) {
             stopPullerMode();
@@ -196,7 +205,7 @@ public class AutoPearlStasis extends Module {
             stopMainMode();
             startPullerMode();
         }
-        currentActiveMode = v.name();
+        currentActiveMode = v;
     }
 
     // GUI
@@ -209,10 +218,10 @@ public class AutoPearlStasis extends Module {
         this.theme = theme;
         fillInfoTable(theme, table);
 
-        l.add(table);
+        l.add(table).padLeft(6);
 
         l.add(theme.horizontalSeparator()).expandX();
-        WButton testConnectionButton = l.add(theme.button("Test Connection")).expandX().widget();
+        WButton testConnectionButton = l.add(theme.button("Test Connection")).expandX().padHorizontal(6).widget();
         testConnectionButton.action = this::handleTestConnection;
         return l;
     }
@@ -233,13 +242,13 @@ public class AutoPearlStasis extends Module {
         if (event.connection != null) connectionAddress = event.connection;
         if (event.pearlStatus != null) isPearlLoaded = event.pearlStatus ? "Yes" : "No";
 
-        fillInfoTable(theme, table);
+        mc.execute(() -> fillInfoTable(theme, table));
     }
 
     private void fillInfoTable(GuiTheme theme, WTable table) {
         if (theme == null || table == null) return;
         table.clear();
-        String role = mode.get() == Mode.Main ? "Puller's" : "Main's";
+        String role = currentActiveMode == Mode.Main ? "Puller's" : "Main's";
         table.add(theme.label(role + " username: " + connectionUsername));
         table.row();
         table.add(theme.label(role + " connection: " + connectionAddress));

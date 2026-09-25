@@ -9,6 +9,7 @@ import meteordevelopment.meteorclient.utils.world.BlockUtils;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.phys.BlockHitResult;
@@ -42,18 +43,7 @@ public class Puller {
 
     @EventHandler
     private void onEntityAdded(EntityAddedEvent event) {
-        if (!(event.entity instanceof ThrownEnderpearl pearl)) return;
-
-        if (pearl.getOwner() != null
-            && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
-            && isWithinTrapdoor(pearl.position())) {
-            hasPearlLoaded.add(pearl.getUUID());
-            m.info("pearl loaded");
-            if (!hasPearlLoaded.isEmpty()) {
-                socket.send(GSON.toJson(new PearlStatus(true)));
-                EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(true));
-            }
-        }
+        if (event.entity instanceof ThrownEnderpearl pearl) shouldAddPearl(pearl);
     }
 
     @EventHandler
@@ -65,13 +55,14 @@ public class Puller {
             socket.send(GSON.toJson(new PearlStatus(false)));
             EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(false));
         }
+        lastPullTime = 0;
     }
 
     protected void pullPearl() {
         if (hasPearlLoaded.isEmpty()) return;
 
         long currentTime = System.currentTimeMillis();
-        if (currentTime - lastPullTime < 100) return; // 100ms randomly chosen - no particular reason
+        if (currentTime - lastPullTime < m.requestCooldown.get()) return;
         lastPullTime = currentTime;
         if (!(mc.level.getBlockState(m.trapdoorPos.get()).getBlock() instanceof TrapDoorBlock)) {
             printAndSendInfo("selected position is not a trapdoor", InfoType.error);
@@ -109,6 +100,25 @@ public class Puller {
     private boolean isWithinTrapdoor(Vec3 pearlPos) {
         return Math.floor(pearlPos.x) == m.trapdoorPos.get().getX()
             && Math.floor(pearlPos.z) == m.trapdoorPos.get().getZ();
+    }
+
+    private void checkForAlreadyExistingPearls() {
+        for (Entity entity : mc.level.entitiesForRendering()) {
+            if (entity instanceof ThrownEnderpearl pearl) shouldAddPearl(pearl);
+        }
+    }
+
+    private void shouldAddPearl(ThrownEnderpearl pearl) {
+        if (pearl.getOwner() != null
+            && pearl.getOwner().getName().getString().equalsIgnoreCase(mainAccountName)
+            && isWithinTrapdoor(pearl.position())) {
+            hasPearlLoaded.add(pearl.getUUID());
+            m.info("pearl loaded");
+            if (!hasPearlLoaded.isEmpty()) {
+                socket.send(GSON.toJson(new PearlStatus(true)));
+                EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(true));
+            }
+        }
     }
 
     protected void testConnection() {
@@ -154,8 +164,6 @@ public class Puller {
                     m.info("Connected to main.");
                     connection.listen(this::onMessage, this::onDisconnect);
 
-                    send(GSON.toJson(new PearlStatus(!hasPearlLoaded.isEmpty())));
-
                     while (running && connection.isOpen()) {
                         sleep(200);
                     }
@@ -180,6 +188,7 @@ public class Puller {
                 case SetUsername su -> {
                     mainAccountName = su.username();
                     sendPullerStatus();
+                    checkForAlreadyExistingPearls();
                     EVENT_BUS.post(new AutoPearlStasisUpdateInfoTableEvent(
                         su.username(),
                         connection.getRemoteAddress()));

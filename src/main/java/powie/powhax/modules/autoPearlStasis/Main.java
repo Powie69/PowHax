@@ -24,9 +24,10 @@ import static powie.powhax.Powhax.LOG;
 public class Main {
     private final AutoPearlStasis m;
 
-    protected boolean hasPearlLoaded;
     protected int pops;
     protected final HostSocket socket;
+    private boolean hasPearlLoaded;
+    private long lastRequestTime;
 
     public Main(AutoPearlStasis module) {
         m = module;
@@ -82,7 +83,12 @@ public class Main {
 
     protected void requestPull(String reason) {
         if (mc.player.isDeadOrDying()) return;
-        if (!socket.connection.isOpen()) {
+
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastRequestTime < m.requestCooldown.get()) return;
+        lastRequestTime = currentTime;
+
+        if (socket.connection == null || !socket.connection.isOpen()) {
             m.error("Puller not found");
             return;
         }

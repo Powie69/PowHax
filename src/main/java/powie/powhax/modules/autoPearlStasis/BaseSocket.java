@@ -21,7 +21,6 @@ public abstract class BaseSocket {
     protected void stop() {
         running = false;
         if (connection != null) connection.close();
-//        m.info(getClass().getSimpleName() + " stopped.");
     }
 
     protected void onMessage(String message) {
