@@ -3,6 +3,7 @@ package powie.powhax.modules.autoPearlStasis;
 import com.google.gson.JsonObject;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
+import meteordevelopment.meteorclient.gui.widgets.containers.WHorizontalList;
 import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
 import meteordevelopment.meteorclient.gui.widgets.containers.WVerticalList;
 import meteordevelopment.meteorclient.gui.widgets.pressable.WButton;
@@ -12,6 +13,7 @@ import meteordevelopment.meteorclient.utils.Utils;
 import meteordevelopment.meteorclient.utils.misc.Keybind;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Util;
 import net.minecraft.world.entity.EntityType;
 import powie.powhax.Powhax;
 import powie.powhax.events.AutoPearlStasisUpdateInfoTableEvent;
@@ -135,8 +137,6 @@ public class AutoPearlStasis extends Module {
     /**
      * <p>TODO: auto pearl reload</p>
      * <p>TODO: better ux for folia servers</p>
-     *
-     * <p>Sometimes throws ConcurrentModificationException. cant replicate consistently</p>
      */
     public AutoPearlStasis() {
         super(Powhax.CATEGORY,
@@ -212,16 +212,19 @@ public class AutoPearlStasis extends Module {
     @Override
     public WWidget getWidget(GuiTheme theme) {
         WVerticalList l = theme.verticalList();
-        WTable table = theme.table();
 
+        WTable table = theme.table();
         this.table = table;
         this.theme = theme;
         fillInfoTable(theme, table);
-
         l.add(table).padLeft(6);
 
         l.add(theme.horizontalSeparator()).expandX();
-        WButton testConnectionButton = l.add(theme.button("Test Connection")).expandX().padHorizontal(6).widget();
+        WHorizontalList buttons = l.add(theme.horizontalList()).expandX().padHorizontal(6).widget();
+
+        WButton openGuideButton = buttons.add(theme.button("Open Guide")).expandX().widget();
+        openGuideButton.action = () -> Util.getPlatform().openUri("https://github.com/Powie69/PowHax/wiki/Auto-Pearl-Stasis-Guide");
+        WButton testConnectionButton = buttons.add(theme.button("Test Connection")).expandX().widget();
         testConnectionButton.action = this::handleTestConnection;
         return l;
     }
