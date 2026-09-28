@@ -10,16 +10,18 @@ import meteordevelopment.meteorclient.settings.FileSetting;
 import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
+import meteordevelopment.meteorclient.utils.player.PlayerUtils;
+import meteordevelopment.meteorclient.utils.world.Dimension;
 import meteordevelopment.orbit.EventHandler;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Util;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.chunk.ChunkAccess;
-import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import powie.powhax.Powhax;
 import powie.powhax.utils.Config;
 
@@ -58,7 +60,7 @@ public class BedrockSeedfinder extends Module {
         .build()
     );
 
-    private final Setting<File> file = sgGeneral.add(new FileSetting.Builder()
+    private final Setting<File> customFileLocation = sgGeneral.add(new FileSetting.Builder()
         .name("save-file")
         .description("Output file for bedrock coordinates data")
         .visible(() -> mode.get() == Mode.custom)
@@ -103,6 +105,7 @@ public class BedrockSeedfinder extends Module {
                 for (int z = c.getPos().getMinBlockZ(); z <= c.getPos().getMaxBlockZ(); z++) {
                     sPos.set(x, y, z);
                     if (!c.getBlockState(sPos).is(Blocks.BEDROCK)) continue;
+                    if (writer == null) createWriter();
                     try {
                         writer.write(x + " " + y + " " + z + " Bedrock");
                         writer.newLine();
@@ -120,23 +123,14 @@ public class BedrockSeedfinder extends Module {
         if (mode.get() == Mode.powhax) {
             outputFile = Config.newBedrockFile().toFile();
         } else {
-            if (isInvalidFile(file.get())) {
+            if (isInvalidFile(customFileLocation.get())) {
                 toggle();
                 return;
             }
-            outputFile = file.get();
+            outputFile = customFileLocation.get();
         }
-        if (!mc.level.dimensionTypeRegistration().is(BuiltinDimensionTypes.NETHER))
+        if (PlayerUtils.getDimension() != Dimension.Nether)
             warning("This module is only meant to be used in the nether");
-        try {
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(
-                outputFile,
-                mode.get() == Mode.custom && writeMode.get() == WriteMode.append
-            )));
-        } catch (FileNotFoundException e) {
-            error("Failed to open file for writing: " + e.getMessage());
-            toggle();
-        }
     }
 
     @Override
@@ -151,13 +145,16 @@ public class BedrockSeedfinder extends Module {
                     .withStyle(style -> style
                         .applyFormat(ChatFormatting.YELLOW)
                         .withClickEvent(new ClickEvent.OpenFile(outputFile))
-                    )
+                        .withHoverEvent(new HoverEvent.ShowText(
+                            Component.literal("Click to open file")
+                        )))
                 );
                 info(message);
             } catch (IOException e) {
                 info(e.getMessage());
             } finally {
                 lines = 0;
+                writer = null;
             }
         });
     }
@@ -166,6 +163,18 @@ public class BedrockSeedfinder extends Module {
     public String getInfoString() {
         if (outputFile == null) return null;
         return outputFile.getName() + " | " + lines;
+    }
+
+    private void createWriter() {
+        try {
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(
+                outputFile,
+                mode.get() == Mode.custom && writeMode.get() == WriteMode.append
+            )));
+        } catch (FileNotFoundException e) {
+            error("Failed to open file for writing: " + e.getMessage());
+            toggle();
+        }
     }
 
     private boolean isInvalidFile(File file) {
