@@ -1,5 +1,7 @@
 package powie.powhax;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.mojang.logging.LogUtils;
 import meteordevelopment.meteorclient.addons.GithubRepo;
 import meteordevelopment.meteorclient.addons.MeteorAddon;
@@ -14,6 +16,7 @@ import powie.powhax.commands.ClearChat;
 import powie.powhax.commands.Coords;
 import powie.powhax.commands.Xp;
 import powie.powhax.modules.*;
+import powie.powhax.modules.autoPearlStasis.AutoPearlStasis;
 import powie.powhax.settings.MapIdListSetting;
 
 import static powie.powhax.utils.Config.initializeConfig;
@@ -21,6 +24,7 @@ import static powie.powhax.utils.Config.initializeConfig;
 public class Powhax extends MeteorAddon {
     public static final Logger LOG = LogUtils.getLogger();
     public static final Category CATEGORY = new Category("PowHax");
+    public static final Gson GSON = new GsonBuilder().create();
 //    public static final HudGroup HUD_GROUP = new HudGroup("PowHax");
 
     @Override
@@ -37,7 +41,6 @@ public class Powhax extends MeteorAddon {
         Modules.get().add(new AutoLogin());
         Modules.get().add(new AutoPearlStasis());
         Modules.get().add(new BedrockSeedfinder());
-        Modules.get().add(new BlazeFarm());
         Modules.get().add(new DeathCommands());
         Modules.get().add(new FlySpeed());
         Modules.get().add(new HandDerp());
