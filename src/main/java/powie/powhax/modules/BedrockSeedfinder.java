@@ -111,7 +111,7 @@ public class BedrockSeedfinder extends Module {
                         writer.newLine();
                         lines++;
                     } catch (IOException e) {
-                        info(e.getMessage());
+                        error(e.getMessage());
                     }
                 }
             }
@@ -151,7 +151,7 @@ public class BedrockSeedfinder extends Module {
                 );
                 info(message);
             } catch (IOException e) {
-                info(e.getMessage());
+                error(e.getMessage());
             } finally {
                 lines = 0;
                 writer = null;
