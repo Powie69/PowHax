@@ -1,40 +1,44 @@
 package powie.powhax.modules;
 
-import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.containers.WTable;
+import meteordevelopment.meteorclient.settings.BoolSetting;
 import meteordevelopment.meteorclient.settings.Setting;
-import meteordevelopment.meteorclient.settings.SettingGroup;
+import meteordevelopment.meteorclient.settings.Settings;
+import meteordevelopment.meteorclient.settings.StringListSetting;
 import meteordevelopment.meteorclient.systems.modules.Module;
-import meteordevelopment.orbit.EventHandler;
+import meteordevelopment.meteorclient.utils.Utils;
 import powie.powhax.Powhax;
-import powie.powhax.settings.MapIdListSetting;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class MapartBlock extends Module {
-    private final SettingGroup sgGeneral = settings.getDefaultGroup();
-
-    private final Setting<List<String>> maparts = sgGeneral.add(new MapIdListSetting.Builder()
-        .name("maparts")
-        .description("Maparts to block")
-        .build()
-    );
+    private final Set<Integer> blockedMaparts = new HashSet<>();
 
     public MapartBlock() {
         super(Powhax.CATEGORY, "mapart-blocker", "Blocks rendering of specified Maparts based on their IDs");
     }
 
-    @EventHandler
-    private void onGameJoined(GameJoinedEvent event) {
+    private final Settings tempSettings = new Settings();
 
-    }
+    private final Setting<List<String>> tempOption = tempSettings.getDefaultGroup().add(new StringListSetting.Builder()
+        .name("Maparts")
+        .build()
+    );
 
     @Override
     public WWidget getWidget(GuiTheme theme) {
-        WTable table = new WTable();
+        return theme.settings(tempSettings); // just renders it
+    }
 
-        return table;
+    private void fillTable(GuiTheme theme, WTable table) {
+        table.clear();
+        if (!Utils.canUpdate()) {
+            table.add(theme.label("Join a world first"));
+            return;
+        }
     }
 }

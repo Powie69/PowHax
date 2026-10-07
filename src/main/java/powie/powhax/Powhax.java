@@ -17,7 +17,7 @@ import powie.powhax.commands.Coords;
 import powie.powhax.commands.Xp;
 import powie.powhax.modules.*;
 import powie.powhax.modules.autoPearlStasis.AutoPearlStasis;
-import powie.powhax.settings.MapIdListSetting;
+import powie.powhax.settings.StringIntListSetting;
 
 import static powie.powhax.utils.Config.initializeConfig;
 
@@ -57,12 +57,11 @@ public class Powhax extends MeteorAddon {
 
         // HUD
 
-        // Settings
-        SettingsWidgetFactory.registerCustomFactory(MapIdListSetting.class, theme -> (table, setting) -> {
-            MapIdListSetting s = (MapIdListSetting) setting; // temporary
-            WTable inner = table.add(theme.table()).expandX().widget();
-            MapIdListSetting.fillTable(theme, inner, (MapIdListSetting) setting);
-        });
+//         Settings
+//        SettingsWidgetFactory.registerCustomFactory(StringIntListSetting.class, theme -> (table, setting) -> {
+//            WTable inner = table.add(theme.table()).expandX().widget();
+//            StringIntListSetting.fillTable(theme, inner, (StringIntListSetting) setting);
+//        });
     }
 
     @Override
