@@ -58,10 +58,10 @@ public class Powhax extends MeteorAddon {
         // HUD
 
 //         Settings
-//        SettingsWidgetFactory.registerCustomFactory(StringIntListSetting.class, theme -> (table, setting) -> {
-//            WTable inner = table.add(theme.table()).expandX().widget();
-//            StringIntListSetting.fillTable(theme, inner, (StringIntListSetting) setting);
-//        });
+        SettingsWidgetFactory.registerCustomFactory(StringIntListSetting.class, theme -> (table, setting) -> {
+            WTable inner = table.add(theme.table()).expandX().widget();
+            StringIntListSetting.fillTable(theme, inner, (StringIntListSetting) setting);
+        });
     }
 
     @Override
