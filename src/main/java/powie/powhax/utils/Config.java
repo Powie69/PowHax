@@ -29,7 +29,7 @@ public class Config {
     private static final Path CONFIG_FOLDER = FabricLoader.getInstance().getGameDir().resolve("powhax");
     private static final Path SHOP_FOLDER = CONFIG_FOLDER.resolve("shop");
     private static final Path BEDROCK_FOLDER = CONFIG_FOLDER.resolve("bedrock");
-    private static final Path MAPART_FOLDER = CONFIG_FOLDER.resolve("mapart");
+    private static final Path MAP_FOLDER = CONFIG_FOLDER.resolve("map");
     // @formatter:off
     private static final Type MAPS_TYPE = new TypeToken<HashSet<Integer>>() {}.getType();
     // @formatter:on
@@ -39,7 +39,7 @@ public class Config {
             Files.createDirectories(CONFIG_FOLDER);
             Files.createDirectories(SHOP_FOLDER);
             Files.createDirectories(BEDROCK_FOLDER);
-            Files.createDirectories(MAPART_FOLDER);
+            Files.createDirectories(MAP_FOLDER);
         } catch (IOException e) {
             throw new RuntimeException("Failed to create config folder", e);
         }
@@ -66,9 +66,9 @@ public class Config {
 
     // mapart
 
-    public static Set<Integer> getMapartFile(String worldName) {
+    public static Set<Integer> getMapFile(String worldName) {
         try {
-            Path file = MAPART_FOLDER.resolve(worldName + ".json");
+            Path file = MAP_FOLDER.resolve(worldName + ".json");
             if (!Files.exists(file)) {
                 Files.createFile(file);
                 return new HashSet<>();
@@ -86,11 +86,11 @@ public class Config {
         }
     }
 
-    public static void saveMapartFile(String worldName, Set<Integer> maparts) {
+    public static void saveMapFile(String worldName, Set<Integer> maps) {
         try {
-            Path file = MAPART_FOLDER.resolve(worldName + ".json");
+            Path file = MAP_FOLDER.resolve(worldName + ".json");
             try (BufferedWriter writer = Files.newBufferedWriter(file)) {
-                GSON.toJson(maparts, writer);
+                GSON.toJson(maps, writer);
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to write maps config", e);

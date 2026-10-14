@@ -45,7 +45,7 @@ public class Powhax extends MeteorAddon {
         Modules.get().add(new FlySpeed());
         Modules.get().add(new HandDerp());
         Modules.get().add(new LavacastHelper());
-        Modules.get().add(new MapartBlock());
+        Modules.get().add(new MapBlock());
         Modules.get().add(new PriceScraper());
         Modules.get().add(new SmiteAura());
         Modules.get().add(new TrajectoriesPlus());
