@@ -13,7 +13,7 @@
     "repo": "https://github.com/Powie69/PowHax",
     "source": "https://github.com/Powie69/PowHax"
   },
-  "icon": "assets/template/icon.png",
+  "icon": "assets/powhax/icon.png",
   "environment": "client",
   "entrypoints": {
     "meteor": [

@@ -2,7 +2,9 @@
   "required": true,
   "package": "powie.powhax.mixin",
   "compatibilityLevel": "JAVA_21",
-  "client": [],
+  "client": [
+    "MapRendererMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
