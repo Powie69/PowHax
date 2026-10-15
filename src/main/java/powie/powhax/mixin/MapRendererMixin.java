@@ -22,7 +22,7 @@ public abstract class MapRendererMixin {
         MapBlock module = Modules.get().get(MapBlock.class);
         if (module == null || !module.isActive()) return;
         if (!module.maps.contains(mapId.id())) return;
-        if (!module.replace.get()) mapRenderState.texture = Identifier.fromNamespaceAndPath("sixbees", "transparent.png");
+        if (!module.replace.get()) mapRenderState.texture = Identifier.fromNamespaceAndPath("powhax", "transparent.png");
         else mapRenderState.texture = Identifier.fromNamespaceAndPath("powhax", "icon.png");
     }
 }
