@@ -35,12 +35,8 @@ public class MapBlock extends Module {
     public final Set<Integer> maps = new HashSet<>();
 
     public MapBlock() {
-        super(Powhax.CATEGORY, "mapart-blocker", "Blocks rendering of specified Maparts based on their IDs");
+        super(Powhax.CATEGORY, "map-blocker", "Blocks rendering of specified maps based on their IDs");
         runInMainMenu = true;
-//        Random random = new Random();
-//        for (int i = 0; i < 100; i++) {
-//            maps.add(random.nextInt(10000));
-//        }
     }
 
     //render
@@ -60,7 +56,7 @@ public class MapBlock extends Module {
         };
         //
 
-        WSection mapsList = l.add(theme.section("Blocked maparts")).expandX().widget();
+        WSection mapsList = l.add(theme.section("Blocked maps")).expandX().widget();
         fillTable(theme, table);
         mapsList.add(table);
         return l;
@@ -86,6 +82,7 @@ public class MapBlock extends Module {
 
     // serialize
     private boolean addMap(String value) {
+        if (!Utils.canUpdate() || value.isBlank()) return false;
         try {
             int mapId = Integer.parseInt(value);
             if (mapId < 0) return false;

@@ -19,6 +19,7 @@ this addon is focused on plugins like [Essentials](https://essentialsx.net/), [m
 | Fly Speed           | Modifies your fly speed.                                                                                                                                          | Anything that gives you the flight abilities like [`/fly` in essentialsX](https://essentialsx.net) |
 | Hand Derp           | Automatically switches between left and right main hand.                                                                                                          |                                                                                                    |
 | Lavacast Helper     | Calculates lavacast corners based on distance and target height                                                                                                   |                                                                                                    |
+| Map Blocker         | Blocks rendering of specified maps based on their IDs                                                                                                             |                                                                                                    |
 | Price Scraper       | automatically scrapes the prices of items in dynamic shop                                                                                                         | [Dynamic shops](https://www.spigotmc.org/resources/discontinued-dynamicshop-3-1-16-5-1-21.65603/)  |
 | Smite Aura          | Automatically strikes lightning on specified entities around you.                                                                                                 | [`/lightning` in essentialsX](https://essentialsx.net/)                                            |
 | Trajectories+       | Select which fired entities to track                                                                                                                              |                                                                                                    |
@@ -64,13 +65,6 @@ These older versions are no longer supported.
 | [1.6.0](https://github.com/Powie69/PowHax/releases/tag/1.6.0) | `1.21.5`              |
 
 <sub>*There are more older versions, but I only figured out how semantic versioning works after 1.6.0*</sub>
-</details>
-<details>
-<summary><h3 style="display: inline">Build</h3></summary> 
-
-If you don't trust the very many download buttons. You can compile the addon yourself.
-[Here is tutorial on how to compile Minecraft mods.](https://youtu.be/5dEgxdLUQoI)
-
 </details>
 
 ⭐ Please consider starring ty!
