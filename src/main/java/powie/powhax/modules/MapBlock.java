@@ -1,8 +1,7 @@
 package powie.powhax.modules;
 
-import meteordevelopment.meteorclient.events.game.GameJoinedEvent;
-import meteordevelopment.meteorclient.events.game.GameLeftEvent;
 import meteordevelopment.meteorclient.gui.GuiTheme;
+import meteordevelopment.meteorclient.gui.screens.ModuleScreen;
 import meteordevelopment.meteorclient.gui.widgets.WWidget;
 import meteordevelopment.meteorclient.gui.widgets.containers.WHorizontalList;
 import meteordevelopment.meteorclient.gui.widgets.containers.WSection;
@@ -16,7 +15,6 @@ import meteordevelopment.meteorclient.settings.Setting;
 import meteordevelopment.meteorclient.settings.SettingGroup;
 import meteordevelopment.meteorclient.systems.modules.Module;
 import meteordevelopment.meteorclient.utils.Utils;
-import meteordevelopment.orbit.EventHandler;
 import powie.powhax.Powhax;
 import powie.powhax.utils.Config;
 
@@ -33,10 +31,11 @@ public class MapBlock extends Module {
         .build());
 
     public final Set<Integer> maps = new HashSet<>();
+    private GuiTheme theme;
+    private WTable table;
 
     public MapBlock() {
         super(Powhax.CATEGORY, "map-blocker", "Blocks rendering of specified maps based on their IDs");
-        runInMainMenu = true;
     }
 
     //render
@@ -44,6 +43,8 @@ public class MapBlock extends Module {
     public WWidget getWidget(GuiTheme theme) {
         WVerticalList l = theme.verticalList();
         WTable table = theme.table();
+        this.theme = theme;
+        this.table = table;
 
         l.add(theme.label("Enter map ID:")).padLeft(6).marginTop(6);
         WHorizontalList actionButtons = l.add(theme.horizontalList()).expandX().padLeft(6).widget();
@@ -100,16 +101,18 @@ public class MapBlock extends Module {
         }
     }
 
-    @EventHandler
-    private void onGameJoined(GameJoinedEvent event) {
+    @Override
+    public void onActivate() {
         Set<Integer> mapData = Config.getMapFile(Utils.getFileWorldName());
         if (mapData.isEmpty()) return;
         maps.addAll(mapData);
+        if (mc.gui.screen() instanceof ModuleScreen s && s.getTitle().getString().equals(title)) fillTable(theme, table);
     }
 
-    @EventHandler
-    private void onGameLeft(GameLeftEvent event) {
+    @Override
+    public void onDeactivate() {
         Config.saveMapFile(Utils.getFileWorldName(), maps);
         maps.clear();
+        if (mc.gui.screen() instanceof ModuleScreen s && s.getTitle().getString().equals(title)) fillTable(theme, table);
     }
 }
