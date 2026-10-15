@@ -31,7 +31,7 @@ dependencies {
     implementation(libs.meteor.client)
 
     // Gson
-    implementation("com.google.code.gson:gson:2.10.1")
+    implementation(libs.gson)
 }
 
 java {
