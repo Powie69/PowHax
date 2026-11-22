@@ -127,6 +127,14 @@ public class AutoPearlStasis extends Module {
         .build()
     );
 
+    protected final Setting<Boolean> pullIfNotLooking = sgPuller.add(new BoolSetting.Builder()
+        .name("pull-if-not-looking")
+        .description("Whether to pull trapdoor even if your not looking at it")
+        .defaultValue(true)
+        .visible(() -> mode.get() == Mode.Puller && !rotate.get())
+        .build()
+    );
+
     private Main main;
     private Puller puller;
 

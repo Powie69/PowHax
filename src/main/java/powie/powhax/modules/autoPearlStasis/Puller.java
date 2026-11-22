@@ -76,9 +76,15 @@ public class Puller {
             printAndSendInfo("trapdoor is closed", InfoType.error);
             return;
         }
+        if (!m.pullIfNotLooking.get()
+            && !m.rotate.get()
+            && (!(mc.hitResult instanceof BlockHitResult bhr) || !m.trapdoorPos.get().equals(bhr.getBlockPos()))) {
+            printAndSendInfo("Puller is not looking at trapdoor", InfoType.error);
+            return;
+        }
 
         if (m.rotate.get()) {
-            Rotations.rotate(
+            Rotations.rotate( // todo: actually have it aim to the trapdoor
                 Rotations.getYaw(m.trapdoorPos.get()),
                 Rotations.getPitch(m.trapdoorPos.get()),
                 this::interactWithTrapdoor);
@@ -183,7 +189,7 @@ public class Puller {
             switch (msg) {
                 case PullRequest pr -> {
                     m.info("Pull request: " + pr.reason());
-                    mc.execute(Puller.this::pullPearl); // screw Jelly squid
+                    mc.execute(Puller.this::pullPearl);
                 }
                 case SetUsername su -> {
                     mainAccountName = su.username();
